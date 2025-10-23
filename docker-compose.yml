@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  car-damage-api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Weights:/app/Weights
+      - ./Media:/app/Media
+      - ./Output:/app/Output
+    environment:
+      - ENVIRONMENT=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  car-damage-ui:
+    build: .
+    command: streamlit run car-damage-ui.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./Weights:/app/Weights
+      - ./Media:/app/Media
+      - ./Output:/app/Output
+    environment:
+      - ENVIRONMENT=production
+    restart: unless-stopped
+    depends_on:
+      - car-damage-api
+
+networks:
+  default:
+    name: car-damage-network

@@ -1,0 +1,34 @@
+# Core AI/ML Dependencies
+ultralytics>=8.2.34
+torch>=1.8.0
+torchvision>=0.9.0
+opencv-python>=4.1.1
+numpy>=1.23.5
+
+# Computer Vision & Image Processing
+Pillow>=10.3.0
+cvzone
+
+# Web Application Framework
+streamlit>=1.28.0
+plotly>=5.0.0
+
+# API Framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Data Processing & Analysis
+pandas>=1.1.4
+scipy>=1.4.1
+
+# Utilities
+PyYAML>=5.3.1
+requests>=2.32.0
+tqdm>=4.64.0
+matplotlib>=3.3
+psutil
+
+# Development & Profiling
+thop>=0.1.1
+gitpython>=3.1.30
