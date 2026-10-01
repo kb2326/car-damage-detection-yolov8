@@ -142,10 +142,12 @@ ClaimEvent {
 }
 ```
 
-**Core event types:** `ClaimReported`, `PhotoUploaded`, `PhotoRejected`, `PhotoRedacted`,
-`DamageDetected`, `FraudSignalRaised`, `CostEstimated`, `PolicyRetrieved`, `AgentStepCompleted`,
-`AgentRecommended`, `HumanReviewRequested`, `RouteDecided`, `HumanDecided`, `HumanOverrode`,
-`MemoryWritten`, `ClaimClosed`.
+**Core event types:** `ClaimReported`, `PhotoUploaded`, `PhotoAccepted`, `PhotoRejected`,
+`PhotoRedacted`, `DamageDetected`, `IntegrityChecked` (carries zero or more fraud signals, so a
+clean check is also recorded), `CostEstimated`, `PolicyRetrieved`, `AgentStepCompleted`,
+`AgentRecommended`, `HumanReviewRequested`, `RouteDecided`, `StageFailed`, `HumanDecided`,
+`HumanOverrode`, `MemoryWritten`, `ClaimClosed`. M1 implements the subset in
+`claimlens.events.payloads`.
 
 **Rules**
 
