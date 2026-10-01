@@ -1,149 +1,70 @@
-# 🚗 AI-Powered Car Damage Detection System
+# ClaimLens
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange.svg)](https://ultralytics.com)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Web%20App-red.svg)](https://streamlit.io)
-[![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-green.svg)](https://opencv.org)
+**AI-assisted vehicle damage claims triage.** Custom-trained computer-vision models act as tools
+for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
+of every consequential decision.
 
-> **Advanced computer vision system for automated vehicle damage assessment using state-of-the-art deep learning**
+> Status: **M0 – Foundations** (in progress). This repository started as a STAT 5350 course
+> project (a YOLOv8 car-damage detector). See [`legacy/README.md`](legacy/README.md) for the
+> original code and the audit that motivated the rebuild.
 
-## 🎯 Project Overview
+## Why
 
-This AI-powered system leverages **YOLOv8** object detection to automatically identify and classify vehicle damage from images. Built for insurance companies, auto repair shops, and fleet management, it provides instant damage assessment with confidence scoring and severity analysis.
+Filing a car-damage claim means an adjuster must inspect photos, identify damaged parts, check the
+policy, estimate cost, watch for fraud, and route the claim. ClaimLens aims to **fast-track simple
+claims in minutes with an explanation an auditor can verify, and escalate everything else to a
+human with the evidence already assembled.**
 
-### 🔥 Key Features
+## Design principles
 
-- **17 Damage Types Detection**: Comprehensive coverage including dents, scratches, windscreen damage, and more
-- **Real-time Processing**: Fast inference with optimized YOLOv8 architecture
-- **Interactive Web Interface**: Professional Streamlit dashboard for easy deployment
-- **Confidence Scoring**: ML-based reliability metrics for each detection
-- **Severity Assessment**: Automated damage severity classification (Low/Medium/High)
-- **Production Ready**: Modular design for easy integration into existing workflows
+1. **Models measure, the agent reasons, rules decide.** CV models produce measurable evidence;
+   the LLM agent interprets it; deterministic business rules make the final routing decision.
+2. **The system never auto-denies.** It can fast-track or escalate. Only humans deny claims.
+3. **Everything is an event.** Claim state is an append-only, hash-chained event log that provides
+   durability, memory, audit, and replay.
+4. **Evals before features.** Every component ships with a measurable evaluation.
 
-## 🏗️ Architecture
+## Repository layout
 
 ```
-├── 🧠 Core AI Engine (YOLOv8)
-├── 🖥️ Web Interface (Streamlit)
-├── 📊 Data Pipeline (OpenCV + PIL)
-├── 🎯 Custom Training Pipeline
-└── 📈 Performance Analytics
+src/claimlens/      Python package (domain code)
+tests/              unit / integration tests and fixtures
+training/           data and training pipelines (from M2)
+evals/              golden claims, eval harness, reports (from M1)
+docs/               PR/FAQ, ADRs, specs, cards, learning notes
+data/               datasets — versioned with DVC, not git (see data/README.md)
+models/             model weights — not in git (see models/README.md)
+legacy/             the original course project, frozen for comparison
 ```
 
-## 🚀 Quick Start
+## Getting started
 
-### Installation
+Requires [uv](https://docs.astral.sh/uv/).
+
 ```bash
-git clone https://github.com/yourusername/car-damage-detection
-cd car-damage-detection
-pip install -r requirements.txt
+uv sync                      # create .venv with Python 3.12 and install dev tools
+uv run pre-commit install    # run lint/format checks on every commit
+uv run pytest                # tests
+uv run ruff check . && uv run mypy
 ```
 
-### Run Web Application
-```bash
-streamlit run car-damage-ui.py
-```
+## Roadmap
 
-### Use as Python Module
-```python
-from car_damage_detector import CarDamageDetector
+| Milestone | Focus |
+|---|---|
+| M0 | Foundations: repo, tooling, CI, ADRs, legacy audit |
+| M1 | Walking skeleton: event-sourced claim state, thin end-to-end pipeline, golden claims |
+| M2 | Data engine: CarDD + foundation-model auto-labelling, DVC, FiftyOne |
+| M3 | Vision models: damage + part instance segmentation, calibration, model card |
+| M4 | Tools & integration: MCP servers, LLM gateway, policy RAG |
+| M5 | Triage agent: human-in-the-loop, LLM evals, CI gates, tracing |
+| M6 | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
+| M7 | Trust & governance: OWASP agentic threat model, red-team, fraud, PII, AIS program |
+| M8 | Ship: ONNX, Docker, public demo, monitoring |
 
-detector = CarDamageDetector("Weights/best.pt")
-processed_img, detections = detector.detect_damage(image)
-```
+Full design: [`docs/specs/2026-10-01-claimlens-design.md`](docs/specs/2026-10-01-claimlens-design.md).
 
-## 🎯 Detected Damage Types
+## License
 
-| Category | Damage Types |
-|----------|-------------|
-| **Body Panels** | Body panel dent, Door outer dent, Fender dent, Quarter panel dent |
-| **Bumpers** | Front bumper dent, Rear bumper dent |
-| **Glass** | Front windscreen damage, Rear windscreen damage |
-| **Lights** | Headlight damage, Taillight damage, Signal light damage |
-| **Structural** | Bonnet dent, Boot dent, Roof dent, Pillar dent, Running board dent |
-| **Mirrors** | Side mirror damage |
-
-## 📊 Model Performance
-
-- **Architecture**: YOLOv8n (Optimized for speed-accuracy balance)
-- **Training**: 50 epochs on curated automotive dataset
-- **Input Resolution**: 640×640 pixels
-- **Inference Speed**: ~50ms per image (GPU)
-- **Confidence Threshold**: 30% (configurable)
-
-## 🛠️ Technical Implementation
-
-### Core Components
-
-1. **CarDamageDetector Class**: Main detection engine with preprocessing and postprocessing
-2. **Streamlit Interface**: Production-ready web application with user guidelines
-3. **Image Processing Pipeline**: Automated resizing, normalization, and format conversion
-4. **Results Visualization**: Bounding box rendering with confidence scores
-
-### Key Technologies
-
-- **Deep Learning**: YOLOv8 (Ultralytics)
-- **Computer Vision**: OpenCV, PIL
-- **Web Framework**: Streamlit
-- **Data Processing**: NumPy, Pandas
-- **Visualization**: CVZone for enhanced annotations
-
-## 📈 Business Impact
-
-- **Cost Reduction**: Automated damage assessment reduces manual inspection time by 80%
-- **Accuracy**: Consistent damage detection eliminates human error variability
-- **Scalability**: Process thousands of images per hour
-- **Integration**: RESTful API ready for enterprise systems
-
-## 🔧 Configuration
-
-Adjust detection parameters in `car_damage_detector.py`:
-
-```python
-self.confidence_threshold = 0.3  # Minimum confidence for detection
-self.model_path = "Weights/best.pt"  # Custom model weights
-```
-
-## 📝 Usage Examples
-
-### Batch Processing
-```python
-detector = CarDamageDetector("Weights/best.pt")
-for image_path in image_list:
-    image = cv2.imread(image_path)
-    results, detections = detector.detect_damage(image)
-    # Process results...
-```
-
-### API Integration
-```python
-# Easy integration into existing systems
-damage_count = len(detections)
-severity = "High" if damage_count >= 3 else "Medium" if damage_count == 2 else "Low"
-```
-
-## 🎓 Learning Outcomes
-
-This project demonstrates:
-- **Computer Vision Expertise**: Object detection, image preprocessing, model optimization
-- **Deep Learning**: Transfer learning, model fine-tuning, performance evaluation
-- **Software Engineering**: Modular design, clean code, documentation
-- **Product Development**: User interface design, deployment considerations
-- **Domain Knowledge**: Automotive industry understanding, business problem solving
-
-## 🚀 Future Enhancements
-
-- [ ] Real-time video processing
-- [ ] Mobile app deployment
-- [ ] Cost estimation integration
-- [ ] Multi-angle damage analysis
-- [ ] Cloud deployment (AWS/Azure)
-- [ ] RESTful API development
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Built with ❤️ for the automotive industry | Showcasing AI Engineering Excellence**
+Code: MIT (see [`LICENSE`](LICENSE)). Datasets keep their own licenses — see
+[`data/README.md`](data/README.md).
