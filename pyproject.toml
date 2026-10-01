@@ -6,8 +6,11 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "imagehash>=4.3",
+  "numpy>=2.0",
   "pillow>=11.0",
   "pydantic>=2.8",
+  "pyyaml>=6.0",
 ]
 
 [project.scripts]
@@ -19,7 +22,6 @@ dev = [
   "pre-commit>=3.8",
   "pytest>=8.3",
   "pytest-cov>=5.0",
-  "pyyaml>=6.0",
   "ruff>=0.6",
   "types-pyyaml>=6.0",
 ]
@@ -52,7 +54,7 @@ files = ["src", "tests", "scripts"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["ultralytics", "ultralytics.*"]
+module = ["ultralytics", "ultralytics.*", "imagehash", "imagehash.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
