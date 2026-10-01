@@ -1,8 +1,9 @@
-"""Command-line interface: `claimlens run | resume | show | verify | eval-triage | data`."""
+"""Command-line interface for claims, datasets, evaluation and review (see `claimlens --help`)."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import tempfile
 from collections.abc import Callable, Sequence
@@ -17,9 +18,10 @@ from claimlens.blobs import BlobStore
 from claimlens.data.config import load_data_config, read_secret
 from claimlens.data.fetch import fetch_source
 from claimlens.data.pipeline import DataContractError, build_dataset
+from claimlens.data.records import read_records, write_records
 from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
-from claimlens.evals.golden import load_golden
+from claimlens.evals.golden import load_golden, write_golden
 from claimlens.evals.metrics import compute_triage_metrics
 from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval
 from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
@@ -28,6 +30,14 @@ from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
 from claimlens.intake import submit_claim
 from claimlens.policy import load_policies
 from claimlens.pricing import load_rate_card
+from claimlens.review.decisions import (
+    GoldenReview,
+    PartReview,
+    apply_golden_review,
+    apply_part_review,
+    read_review,
+    write_review,
+)
 from claimlens.vision.base import Detector
 from claimlens.workflow import PipelineDeps, process_claim
 
@@ -90,6 +100,13 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("dataset_id")
     autolabel = data_sub.add_parser("autolabel", help="propose part masks with foundation models")
     autolabel.add_argument("job_id")
+
+    review = sub.add_parser("review", help="human review in FiftyOne")
+    review.add_argument("action", choices=["launch", "export", "apply"])
+    review.add_argument("target", choices=["parts", "golden"])
+    review.add_argument("--job", default="fusion-eval-v1", help="auto-label job id")
+    review.add_argument("--golden", type=Path, default=Path("evals/golden/v1/claims.jsonl"))
+    review.add_argument("--reviewer", default="reviewer")
     return parser
 
 
@@ -142,6 +159,8 @@ def main(
         return _eval_triage(args, detector_factory)
     if args.command == "data":
         return _data(args, labeller_factory)
+    if args.command == "review":
+        return _review(args)
     store = SQLiteEventStore(args.db)
     try:
         if args.command == "run":
@@ -295,4 +314,68 @@ def _autolabel(args: argparse.Namespace, repo_root: Path, factory: LabellerFacto
     )
     print(f"Auto-labelled {report['images']} images: proposals {report['proposals']}")
     print(f"Dropped: {report['dropped']}")
+    return 0
+
+
+def _review(args: argparse.Namespace) -> int:
+    from claimlens.review import fiftyone_app
+
+    repo_root = Path.cwd()
+    golden_version = args.golden.parent.name
+    parts_file = repo_root / "data" / "interim" / args.job / "autolabels.jsonl"
+    parts_review = repo_root / "reviews" / f"{args.job}.json"
+    golden_review = repo_root / "reviews" / f"golden-{golden_version}.json"
+    try:
+        if args.action == "launch" and args.target == "parts":
+            damage_file = repo_root / "data" / "interim" / "damage-v1" / "records.jsonl"
+            fiftyone_app.launch_parts_review(
+                read_records(parts_file),
+                repo_root=repo_root,
+                name=f"claimlens-{args.job}",
+                damage={r.image_id: r for r in read_records(damage_file)},
+            )
+        elif args.action == "launch":
+            fiftyone_app.launch_golden_review(
+                load_golden(args.golden),
+                repo_root=repo_root,
+                name=f"claimlens-golden-{golden_version}",
+            )
+        elif args.action == "export" and args.target == "parts":
+            review = fiftyone_app.export_parts_review(
+                f"claimlens-{args.job}", job_id=args.job, reviewer=args.reviewer
+            )
+            write_review(parts_review, review)
+            print(f"Wrote {len(review.decisions)} decisions to {parts_review}")
+        elif args.action == "export":
+            golden = fiftyone_app.export_golden_review(
+                f"claimlens-golden-{golden_version}", reviewer=args.reviewer
+            )
+            write_review(golden_review, golden)
+            print(f"Wrote {len(golden.decisions)} decisions to {golden_review}")
+        elif args.target == "parts":
+            kept, counts = apply_part_review(
+                read_records(parts_file), read_review(parts_review, PartReview)
+            )
+            out = repo_root / "data" / "processed" / args.job / "parts.jsonl"
+            write_records(out, kept)
+            report = {"job": args.job, "images": len(kept), "counts": counts}
+            report_path = repo_root / "reports" / "data" / f"{args.job}-review.json"
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                json.dumps(report, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+            )
+            approved, rejected = counts.get("approved", 0), counts.get("rejected", 0)
+            print(f"{approved} approved, {rejected} rejected; {len(kept)} images in {out}")
+        else:
+            cases = apply_golden_review(
+                load_golden(args.golden), read_review(golden_review, GoldenReview)
+            )
+            write_golden(args.golden, cases)
+            print(f"{sum(c.reviewed for c in cases)} of {len(cases)} golden cases reviewed")
+    except fiftyone_app.ReviewUnavailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     return 0
