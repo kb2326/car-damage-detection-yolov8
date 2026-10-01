@@ -53,7 +53,8 @@ settings; they are not insurance claim photos.
    - `parts-v1`: **29 images moved** across splits.
    - No CarDD image is a near-duplicate of a golden-claims photo.
 4. **Split rule:** a whole cluster goes to test if any member is in the source test split, else
-   validation, else train. Clusters containing a golden photo are excluded.
+   it is excluded if it contains a golden photo, else validation, else train. The frozen test
+   split is never altered.
 5. **Export:** YOLO segmentation format; degenerate polygons are dropped and coordinates slightly
    outside [0, 1] are clamped.
 

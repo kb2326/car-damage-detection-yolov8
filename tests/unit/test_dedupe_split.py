@@ -60,3 +60,11 @@ def test_protected_cluster_is_excluded() -> None:
         "a": "excluded",
         "b": "test",
     }
+
+
+def test_protected_cluster_with_test_member_stays_test() -> None:
+    records = [_record("a", "train"), _record("b", "test")]
+    assert assign_splits(records, {"a": 0, "b": 0}, protected_clusters={0}) == {
+        "a": "test",
+        "b": "test",
+    }
