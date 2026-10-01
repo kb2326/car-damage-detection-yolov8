@@ -70,8 +70,8 @@ written plan.*
 - [x] Design spec and visual blueprint
 - [ ] **You:** review the spec and blueprint
 - [ ] **You:** back up `data/raw/` and `models/legacy/` (they exist only on this laptop)
-- [ ] Commit, open a pull request, CI passes, merge to `main`
-- [ ] PR/FAQ: the launch press release, written first
+- [x] Commit, open a pull request, CI passes, merge to `main` (PR #1)
+- [x] PR/FAQ: the launch press release, written first (`docs/prfaq.md`)
 - [ ] Implementation plan for M1
 - [ ] Retro, and LinkedIn series part 1/9
 
