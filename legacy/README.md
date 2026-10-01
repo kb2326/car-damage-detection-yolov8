@@ -13,7 +13,7 @@ linting, type checks and CI. Nothing in `src/claimlens` imports from here.
 | `docs/yolo-training-notes.txt` | study notes (describes anchors/objectness, which YOLOv8 does not use) |
 
 Model weights moved to `models/legacy/yolov8n-cardamage-v6.pt`; the dataset moved to
-`data/raw/roboflow-car-damage-v6/`. Neither is tracked in git.
+`data/raw/legacy-course-subset/`. Neither is tracked in git.
 
 ## Audit (2026-10-01)
 

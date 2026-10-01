@@ -13,11 +13,13 @@ Datasets live here on disk but are **never committed to git**. From M2 they are 
 
 ## Sources
 
-### `raw/roboflow-car-damage-v6/`
+### `raw/legacy-course-subset/`
 
-- **Source:** [Roboflow Universe: car-damage-detection-vyhvw, v6](https://universe.roboflow.com/auto-industry/car-damage-detection-vyhvw/dataset/6)
-- **License:** CC BY 4.0 (attribution required)
-- **Contents:** 339 images (train 180 / valid 111 / test 48), 7 classes, polygon labels in YOLO format
+- **What it is:** the 339-image folder used by the original course project. It is **not** Roboflow
+  v6 (which has 4,000 images and 6 classes); it has 7 classes including `smash` and mixes CarDD
+  images with other Roboflow Universe sources.
+- **Use:** golden claims only (`evals/golden/v0`), never training.
+- **Terms:** Roboflow Universe exports, CC BY 4.0, mixed sources.
 - **Known issues:** see the audit in [`legacy/README.md`](../legacy/README.md)
 
 ### CarDD (planned, M2)

@@ -17,7 +17,7 @@ from claimlens.evals.oracle import findings_from_yolo_label, oracle_route
 from claimlens.policy import load_policies
 from claimlens.pricing import load_rate_card
 
-DATASET = Path("data/raw/roboflow-car-damage-v6")
+DATASET = Path("data/raw/legacy-course-subset")
 OUT_DIR = Path("evals/golden/v0")
 ACTIVE_POLICIES = ["P-1001", "P-1002", "P-1003", "P-1004", "P-1005", "P-1006"]
 DESCRIPTION = "Damage reported after a low-speed collision."
