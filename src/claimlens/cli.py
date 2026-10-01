@@ -1,16 +1,21 @@
-"""Command-line interface: `claimlens run | show | verify`."""
+"""Command-line interface: `claimlens run | show | verify | eval-triage`."""
 
 from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 from collections.abc import Callable, Sequence
+from datetime import date
 from pathlib import Path
 from uuid import UUID
 
 from claimlens.agent.stub import StubTriageAgent
 from claimlens.blobs import BlobStore
 from claimlens.decision import load_decision_config
+from claimlens.evals.golden import load_golden
+from claimlens.evals.metrics import compute_triage_metrics
+from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval
 from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
@@ -48,6 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify = sub.add_parser("verify", help="verify a claim's hash chain")
     verify.add_argument("claim_id", type=UUID)
+
+    evaluate = sub.add_parser("eval-triage", help="score the pipeline on golden claims")
+    evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
+    evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
     return parser
 
 
@@ -93,6 +102,8 @@ def main(
     argv: Sequence[str] | None = None, *, detector_factory: DetectorFactory = _legacy_detector
 ) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "eval-triage":
+        return _eval_triage(args, detector_factory)
     store = SQLiteEventStore(args.db)
     try:
         if args.command == "run":
@@ -127,4 +138,33 @@ def _inspect(args: argparse.Namespace, store: SQLiteEventStore) -> int:
         return 0
     print(format_summary(fold(events)))
     print(format_audit_trail(events))
+    return 0
+
+
+def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
+    cases = load_golden(args.golden)
+    detector = factory(args.weights)
+
+    def make(case_dir: Path) -> PipelineDeps:
+        store = SQLiteEventStore(case_dir / "claims.db")
+        return make_deps(store, BlobStore(case_dir / "blobs"), args.config, detector)
+
+    with tempfile.TemporaryDirectory() as workdir:
+        results = run_triage_eval(cases, make, repo_root=Path.cwd(), workdir=Path(workdir))
+    metrics = compute_triage_metrics([(r.expected, r.predicted) for r in results])
+    meta = ReportMeta(
+        golden_path=args.golden.as_posix(),
+        model_version=detector.model_version,
+        agent_version=StubTriageAgent.agent_version,
+        decision_policy_version=load_decision_config(args.config / "decision_policy.toml").version,
+        generated_on=date.today(),
+    )
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(render_report(cases, results, metrics, meta), encoding="utf-8")
+    recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
+    print(
+        f"Cases: {metrics.total}  Route accuracy: {metrics.route_accuracy:.2f}  "
+        f"Escalation recall: {recall}"
+    )
+    print(f"Report written to {args.report}")
     return 0
