@@ -53,5 +53,38 @@ def load_taxonomies(path: Path) -> dict[str, Taxonomy]:
     return {
         name: Taxonomy.model_validate({"name": name, **body})
         for name, body in data.items()
-        if isinstance(body, dict)
+        if isinstance(body, dict) and name != "part_groups"
     }
+
+
+class PartGroups(Frozen):
+    """Coarse part groups, each a set of fine-grained part classes."""
+
+    classes: tuple[str, ...]
+    members: dict[str, tuple[str, ...]]
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if set(self.members) != set(self.classes):
+            raise ValueError("part group members must be defined for exactly the group classes")
+        seen: set[str] = set()
+        for parts in self.members.values():
+            for part in parts:
+                if part in seen:
+                    raise ValueError(f"part {part!r} is in more than one group")
+                seen.add(part)
+        return self
+
+    def group_of(self, part: str) -> str:
+        for group, parts in self.members.items():
+            if part in parts:
+                return group
+        raise UnknownLabelError("part_groups", part)
+
+    def as_taxonomy(self) -> Taxonomy:
+        return Taxonomy(name="part_groups", classes=self.classes)
+
+
+def load_part_groups(path: Path) -> PartGroups:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    return PartGroups.model_validate(data["part_groups"])

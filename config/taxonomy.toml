@@ -15,3 +15,19 @@ classes = [
 ]
 # Catch-all class with no consistent meaning.
 ignore = ["object"]
+
+[part_groups]
+# Coarse groups for damage-to-part fusion and pricing. Zero-shot models cannot reliably tell
+# left from right, and pricing does not need it. Every parts class belongs to exactly one group.
+classes = ["front_bumper", "rear_bumper", "door", "hood", "trunk", "light", "glass", "mirror", "wheel"]
+
+[part_groups.members]
+front_bumper = ["front_bumper"]
+rear_bumper = ["back_bumper"]
+door = ["back_door", "back_left_door", "back_right_door", "front_door", "front_left_door", "front_right_door"]
+hood = ["hood"]
+trunk = ["tailgate", "trunk"]
+light = ["back_left_light", "back_light", "back_right_light", "front_left_light", "front_light", "front_right_light"]
+glass = ["back_glass", "front_glass"]
+mirror = ["left_mirror", "right_mirror"]
+wheel = ["wheel"]

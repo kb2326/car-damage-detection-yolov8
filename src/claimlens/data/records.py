@@ -15,6 +15,7 @@ class Annotation(Frozen):
 
     label: str
     polygon: tuple[float, ...]
+    score: float | None = None
 
 
 class ImageRecord(Frozen):
