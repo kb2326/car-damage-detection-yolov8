@@ -36,6 +36,7 @@ Thumbs.db
 *.engine
 
 # --- Experiment & run outputs ---
+/var/
 runs/
 mlruns/
 mlartifacts/
