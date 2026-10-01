@@ -11,10 +11,13 @@ from pathlib import Path
 from uuid import UUID
 
 from claimlens.agent.stub import StubTriageAgent
+from claimlens.autolabel.job import AutolabelJob, load_autolabel_jobs, run_autolabel
+from claimlens.autolabel.labeller import PartLabeller
 from claimlens.blobs import BlobStore
 from claimlens.data.config import load_data_config, read_secret
 from claimlens.data.fetch import fetch_source
 from claimlens.data.pipeline import DataContractError, build_dataset
+from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
 from claimlens.evals.golden import load_golden
 from claimlens.evals.metrics import compute_triage_metrics
@@ -30,12 +33,27 @@ from claimlens.workflow import PipelineDeps, process_claim
 
 DEFAULT_WEIGHTS = Path("models/legacy/yolov8n-cardamage-v6.pt")
 DetectorFactory = Callable[[Path], Detector]
+LabellerFactory = Callable[[AutolabelJob], PartLabeller]
 
 
 def _legacy_detector(weights: Path) -> Detector:
     from claimlens.vision.legacy_yolo import LegacyYoloDetector
 
     return LegacyYoloDetector(weights)
+
+
+def _grounded_sam(job: AutolabelJob) -> PartLabeller:
+    from claimlens.autolabel.grounded_sam import GroundedSamLabeller
+
+    return GroundedSamLabeller(
+        job.prompts,
+        box_threshold=job.box_threshold,
+        text_threshold=job.text_threshold,
+        min_score=job.min_score,
+        max_per_group=job.max_per_group,
+        detector=job.detector,
+        segmenter=job.segmenter,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -70,6 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("source_id")
     build = data_sub.add_parser("build", help="build a dataset from raw sources")
     build.add_argument("dataset_id")
+    autolabel = data_sub.add_parser("autolabel", help="propose part masks with foundation models")
+    autolabel.add_argument("job_id")
     return parser
 
 
@@ -112,13 +132,16 @@ def format_audit_trail(events: Sequence[ClaimEvent]) -> str:
 
 
 def main(
-    argv: Sequence[str] | None = None, *, detector_factory: DetectorFactory = _legacy_detector
+    argv: Sequence[str] | None = None,
+    *,
+    detector_factory: DetectorFactory = _legacy_detector,
+    labeller_factory: LabellerFactory = _grounded_sam,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "eval-triage":
         return _eval_triage(args, detector_factory)
     if args.command == "data":
-        return _data(args)
+        return _data(args, labeller_factory)
     store = SQLiteEventStore(args.db)
     try:
         if args.command == "run":
@@ -207,8 +230,10 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     return 0
 
 
-def _data(args: argparse.Namespace) -> int:
+def _data(args: argparse.Namespace, labeller_factory: LabellerFactory) -> int:
     repo_root = Path.cwd()
+    if args.data_command == "autolabel":
+        return _autolabel(args, repo_root, labeller_factory)
     try:
         config = load_data_config(args.config / "datasets.toml")
     except (OSError, ValueError) as exc:
@@ -246,4 +271,28 @@ def _data(args: argparse.Namespace) -> int:
         return 1
     print(f"Built {result.dataset_id}: images {result.stats['images']}")
     print(f"Leaks prevented: {result.stats['leaks_prevented']}")
+    return 0
+
+
+def _autolabel(args: argparse.Namespace, repo_root: Path, factory: LabellerFactory) -> int:
+    jobs = load_autolabel_jobs(args.config / "autolabel.toml")
+    if args.job_id not in jobs:
+        known = ", ".join(sorted(jobs))
+        print(f"error: unknown auto-label job {args.job_id!r} (known: {known})", file=sys.stderr)
+        return 2
+    job = jobs[args.job_id]
+
+    def progress(done: int, total: int) -> None:
+        if done % 10 == 0 or done == total:
+            print(f"  {done}/{total} images", flush=True)
+
+    report = run_autolabel(
+        job,
+        repo_root=repo_root,
+        labeller=factory(job),
+        part_groups=load_part_groups(args.config / "taxonomy.toml"),
+        progress=progress,
+    )
+    print(f"Auto-labelled {report['images']} images: proposals {report['proposals']}")
+    print(f"Dropped: {report['dropped']}")
     return 0
