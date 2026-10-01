@@ -34,7 +34,27 @@ At the start of every phase, Claude explains:
 6. **New terms**: a short glossary
 
 At the end of every phase: a recap, what you learned, three quick questions to check your
-understanding, and a short retrospective in `docs/retros/`.
+understanding, a short retrospective in `docs/retros/`, and the next part of the LinkedIn series.
+
+## LinkedIn series: "Building an AI claims adjuster in public"
+
+LinkedIn only, posted as one numbered series. One part per milestone, each posted after that
+milestone's demo works. No standalone posts in between.
+
+Every part uses the same format: a one-line hook, what was built, one visual, one lesson learned,
+a link to the repo, and a teaser for the next part.
+
+| Part | After | Working title |
+|---|---|---|
+| 1/9 | M0 | I audited my own deep learning class project. Every label it showed was wrong. |
+| 2/9 | M1 | An ugly end-to-end system on day 10, and why that beats a perfect model |
+| 3/9 | M2 | Labelling thousands of images with foundation models |
+| 4/9 | M3 | From 0.137 mAP to a model I trust: what actually helped |
+| 5/9 | M4 | Turning my own models into MCP tools for an agent |
+| 6/9 | M5 | Why most of my AI claims adjuster is deliberately not an agent |
+| 7/9 | M6 | Agent memory an auditor can trust |
+| 8/9 | M7 | I tried to commit insurance fraud against my own AI |
+| 9/9 | M8 | Live demo, numbers, and everything I learned |
 
 ---
 
@@ -53,7 +73,7 @@ written plan.*
 - [ ] Commit, open a pull request, CI passes, merge to `main`
 - [ ] PR/FAQ: the launch press release, written first
 - [ ] Implementation plan for M1
-- [ ] Retro, and optional LinkedIn post #1 ("I audited my own class project")
+- [ ] Retro, and LinkedIn series part 1/9
 
 ## M1 · Walking skeleton (Oct 8–18)
 
@@ -137,5 +157,5 @@ something that already works.*
 - [ ] Docker image and FastAPI service
 - [ ] Public Gradio demo on Hugging Face Spaces
 - [ ] Drift monitoring (Evidently)
-- [ ] Final write-up, demo video, LinkedIn post
+- [ ] Final write-up, demo video, LinkedIn series part 9/9
 - [ ] Stretch: A2A repair-shop partner agent, adjuster copilot
