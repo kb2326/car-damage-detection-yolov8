@@ -1,0 +1,91 @@
+{
+ "clusters": 3373,
+ "dataset": "parts-v1",
+ "ignored_labels": {
+  "object": 12
+ },
+ "images": {
+  "test": 290,
+  "train": 3127,
+  "valid": 416
+ },
+ "instances": {
+  "test": {
+   "back_bumper": 44,
+   "back_door": 89,
+   "back_glass": 54,
+   "back_left_door": 37,
+   "back_left_light": 28,
+   "back_light": 91,
+   "back_right_door": 29,
+   "back_right_light": 25,
+   "front_bumper": 166,
+   "front_door": 95,
+   "front_glass": 178,
+   "front_left_door": 41,
+   "front_left_light": 67,
+   "front_light": 208,
+   "front_right_door": 29,
+   "front_right_light": 62,
+   "hood": 171,
+   "left_mirror": 67,
+   "right_mirror": 61,
+   "tailgate": 8,
+   "trunk": 18,
+   "wheel": 121
+  },
+  "train": {
+   "back_bumper": 729,
+   "back_door": 999,
+   "back_glass": 885,
+   "back_left_door": 201,
+   "back_left_light": 241,
+   "back_light": 1581,
+   "back_right_door": 182,
+   "back_right_light": 201,
+   "front_bumper": 1595,
+   "front_door": 1141,
+   "front_glass": 1661,
+   "front_left_door": 221,
+   "front_left_light": 404,
+   "front_light": 2496,
+   "front_right_door": 206,
+   "front_right_light": 382,
+   "hood": 1687,
+   "left_mirror": 394,
+   "right_mirror": 403,
+   "tailgate": 86,
+   "trunk": 144,
+   "wheel": 698
+  },
+  "valid": {
+   "back_bumper": 97,
+   "back_door": 164,
+   "back_glass": 119,
+   "back_left_door": 17,
+   "back_left_light": 22,
+   "back_light": 230,
+   "back_right_door": 13,
+   "back_right_light": 15,
+   "front_bumper": 217,
+   "front_door": 173,
+   "front_glass": 223,
+   "front_left_door": 17,
+   "front_left_light": 33,
+   "front_light": 384,
+   "front_right_door": 13,
+   "front_right_light": 30,
+   "hood": 222,
+   "left_mirror": 36,
+   "right_mirror": 35,
+   "tailgate": 7,
+   "trunk": 11,
+   "wheel": 58
+  }
+ },
+ "leaks_prevented": 29,
+ "taxonomy": "parts",
+ "validation_warnings": {
+  "no_annotations": 147
+ }
+}

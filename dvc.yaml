@@ -1,0 +1,37 @@
+stages:
+  build-damage-v1:
+    cmd: uv run claimlens data build damage-v1
+    deps:
+      - data/raw/cardd-roboflow-v6
+      - data/raw/legacy-course-subset
+      - evals/golden/v0/claims.jsonl
+      - config/datasets.toml
+      - config/taxonomy.toml
+      - src/claimlens/data
+    outs:
+      - data/interim/damage-v1
+      - data/processed/damage-v1
+      - reports/data/damage-v1-validation.json:
+          cache: false
+      - reports/data/damage-v1-stats.md:
+          cache: false
+    metrics:
+      - reports/data/damage-v1-stats.json:
+          cache: false
+  build-parts-v1:
+    cmd: uv run claimlens data build parts-v1
+    deps:
+      - data/raw/carparts-seg
+      - config/datasets.toml
+      - config/taxonomy.toml
+      - src/claimlens/data
+    outs:
+      - data/interim/parts-v1
+      - data/processed/parts-v1
+      - reports/data/parts-v1-validation.json:
+          cache: false
+      - reports/data/parts-v1-stats.md:
+          cache: false
+    metrics:
+      - reports/data/parts-v1-stats.json:
+          cache: false

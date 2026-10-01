@@ -27,8 +27,11 @@ Thumbs.db
 .ipynb_checkpoints/
 
 # --- Data & models: versioned with DVC (M2), never with git ---
-/data/*
+/data/**
+!/data/**/
 !/data/README.md
+!/data/**/*.dvc
+!/data/**/.gitignore
 /models/*
 !/models/README.md
 *.pt

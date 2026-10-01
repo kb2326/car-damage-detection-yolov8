@@ -1,0 +1,57 @@
+"""Label taxonomies: map every source's label names onto one canonical class list."""
+
+from __future__ import annotations
+
+import tomllib
+from pathlib import Path
+from typing import Self
+
+from pydantic import model_validator
+
+from claimlens.domain import Frozen
+
+
+def normalize_label(label: str) -> str:
+    return label.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+class UnknownLabelError(ValueError):
+    def __init__(self, taxonomy: str, label: str) -> None:
+        super().__init__(f"label {label!r} is not in the {taxonomy} taxonomy")
+        self.label = label
+
+
+class Taxonomy(Frozen):
+    name: str
+    classes: tuple[str, ...]
+    ignore: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if len(set(self.classes)) != len(self.classes):
+            raise ValueError("taxonomy classes must be unique")
+        overlap = set(self.classes) & set(self.ignore)
+        if overlap:
+            raise ValueError(f"labels listed as both class and ignored: {sorted(overlap)}")
+        return self
+
+    def canonical(self, label: str) -> str | None:
+        """Return the canonical class, None for an ignored label, or raise for an unknown one."""
+        key = normalize_label(label)
+        if key in self.classes:
+            return key
+        if key in self.ignore:
+            return None
+        raise UnknownLabelError(self.name, label)
+
+    def index(self, label: str) -> int:
+        return self.classes.index(label)
+
+
+def load_taxonomies(path: Path) -> dict[str, Taxonomy]:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    return {
+        name: Taxonomy.model_validate({"name": name, **body})
+        for name, body in data.items()
+        if isinstance(body, dict)
+    }

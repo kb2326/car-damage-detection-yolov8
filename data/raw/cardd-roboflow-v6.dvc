@@ -1,0 +1,6 @@
+outs:
+- md5: 7d6ea94bdf922af592bed3ebfac42e09.dir
+  size: 347592997
+  nfiles: 4006
+  hash: md5
+  path: cardd-roboflow-v6

@@ -1,0 +1,99 @@
+schema: '2.0'
+stages:
+  build-damage-v1:
+    cmd: uv run claimlens data build damage-v1
+    deps:
+    - path: config/datasets.toml
+      hash: md5
+      md5: c04217f146275f058767dbf615dafdd4
+      size: 1778
+    - path: config/taxonomy.toml
+      hash: md5
+      md5: 68daa6da72b5544416cdabf5ce3068a0
+      size: 742
+    - path: data/raw/cardd-roboflow-v6
+      hash: md5
+      md5: 7d6ea94bdf922af592bed3ebfac42e09.dir
+      size: 347592997
+      nfiles: 4006
+    - path: data/raw/legacy-course-subset
+      hash: md5
+      md5: 06073dff8dcc55d2b18a752cc3b50b76.dir
+      size: 23099830
+      nfiles: 681
+    - path: evals/golden/v0/claims.jsonl
+      hash: md5
+      md5: 8bbb47d697c30bbae9206b68bb15df2c
+      size: 18252
+    - path: src/claimlens/data
+      hash: md5
+      md5: 5bcd69dac396572f458b0bfef422d48f.dir
+      size: 33260
+      nfiles: 13
+    outs:
+    - path: data/interim/damage-v1
+      hash: md5
+      md5: 5f94471f0879e314d94dabe42ca39bae.dir
+      size: 9617114
+      nfiles: 3
+    - path: data/processed/damage-v1
+      hash: md5
+      md5: cc56ac5162bfc4fdad163862267fedbd.dir
+      size: 347098822
+      nfiles: 8001
+    - path: reports/data/damage-v1-stats.json
+      hash: md5
+      md5: 182dfd36d5f12af908e7cedfcda48d04
+      size: 660
+    - path: reports/data/damage-v1-stats.md
+      hash: md5
+      md5: 3fc87c381a128c54ca814469fbca54a1
+      size: 469
+    - path: reports/data/damage-v1-validation.json
+      hash: md5
+      md5: 504f45b31421a7bd114e8990e5826d94
+      size: 87
+  build-parts-v1:
+    cmd: uv run claimlens data build parts-v1
+    deps:
+    - path: config/datasets.toml
+      hash: md5
+      md5: c04217f146275f058767dbf615dafdd4
+      size: 1778
+    - path: config/taxonomy.toml
+      hash: md5
+      md5: 68daa6da72b5544416cdabf5ce3068a0
+      size: 742
+    - path: data/raw/carparts-seg
+      hash: md5
+      md5: a008a1f49dd5e752d186d834145efbc2.dir
+      size: 148194000
+      nfiles: 7668
+    - path: src/claimlens/data
+      hash: md5
+      md5: 5bcd69dac396572f458b0bfef422d48f.dir
+      size: 33260
+      nfiles: 13
+    outs:
+    - path: data/interim/parts-v1
+      hash: md5
+      md5: b270de3bf4cb6fd06b7341802eded212.dir
+      size: 10107061
+      nfiles: 3
+    - path: data/processed/parts-v1
+      hash: md5
+      md5: 9764aa90d16ea83ad39939789180e590.dir
+      size: 141344614
+      nfiles: 7667
+    - path: reports/data/parts-v1-stats.json
+      hash: md5
+      md5: 59b3246e19173f7474e5d25ef64b648b
+      size: 1842
+    - path: reports/data/parts-v1-stats.md
+      hash: md5
+      md5: 4bff6a8eaebc71f900b85ffb33ba6c82
+      size: 1060
+    - path: reports/data/parts-v1-validation.json
+      hash: md5
+      md5: 05347b44da4e6346e069b4e785bbd864
+      size: 90

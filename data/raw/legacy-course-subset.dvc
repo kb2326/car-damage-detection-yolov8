@@ -1,0 +1,6 @@
+outs:
+- md5: 06073dff8dcc55d2b18a752cc3b50b76.dir
+  size: 23099830
+  nfiles: 681
+  hash: md5
+  path: legacy-course-subset

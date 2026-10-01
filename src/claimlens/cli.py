@@ -1,4 +1,4 @@
-"""Command-line interface: `claimlens run | resume | show | verify | eval-triage`."""
+"""Command-line interface: `claimlens run | resume | show | verify | eval-triage | data`."""
 
 from __future__ import annotations
 
@@ -12,6 +12,9 @@ from uuid import UUID
 
 from claimlens.agent.stub import StubTriageAgent
 from claimlens.blobs import BlobStore
+from claimlens.data.config import load_data_config, read_secret
+from claimlens.data.fetch import fetch_source
+from claimlens.data.pipeline import DataContractError, build_dataset
 from claimlens.decision import load_decision_config
 from claimlens.evals.golden import load_golden
 from claimlens.evals.metrics import compute_triage_metrics
@@ -60,6 +63,13 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = sub.add_parser("eval-triage", help="score the pipeline on golden claims")
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
+
+    data = sub.add_parser("data", help="fetch and build datasets")
+    data_sub = data.add_subparsers(dest="data_command", required=True)
+    fetch = data_sub.add_parser("fetch", help="download a raw data source into data/raw/")
+    fetch.add_argument("source_id")
+    build = data_sub.add_parser("build", help="build a dataset from raw sources")
+    build.add_argument("dataset_id")
     return parser
 
 
@@ -107,6 +117,8 @@ def main(
     args = build_parser().parse_args(argv)
     if args.command == "eval-triage":
         return _eval_triage(args, detector_factory)
+    if args.command == "data":
+        return _data(args)
     store = SQLiteEventStore(args.db)
     try:
         if args.command == "run":
@@ -192,4 +204,46 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
         f"Escalation recall: {recall}"
     )
     print(f"Report written to {args.report}")
+    return 0
+
+
+def _data(args: argparse.Namespace) -> int:
+    repo_root = Path.cwd()
+    try:
+        config = load_data_config(args.config / "datasets.toml")
+    except (OSError, ValueError) as exc:
+        print(f"error: cannot read data config: {exc}", file=sys.stderr)
+        return 2
+    if args.data_command == "fetch":
+        if args.source_id not in config.sources:
+            known = ", ".join(sorted(config.sources))
+            print(f"error: unknown source {args.source_id!r} (known: {known})", file=sys.stderr)
+            return 2
+        try:
+            dest = fetch_source(
+                config.sources[args.source_id],
+                repo_root / "data" / "raw",
+                api_key=read_secret("ROBOFLOW_API_KEY"),
+            )
+        except (OSError, ValueError, RuntimeError, KeyError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(f"Fetched {args.source_id} into {dest}")
+        return 0
+    if args.dataset_id not in config.datasets:
+        known = ", ".join(sorted(config.datasets))
+        print(f"error: unknown dataset {args.dataset_id!r} (known: {known})", file=sys.stderr)
+        return 2
+    try:
+        result = build_dataset(args.dataset_id, repo_root=repo_root, config_dir=args.config)
+    except DataContractError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        for issue in exc.report.errors[:10]:
+            print(f"  {issue.image_id}: {issue.code}: {issue.message}", file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"error: build failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Built {result.dataset_id}: images {result.stats['images']}")
+    print(f"Leaks prevented: {result.stats['leaks_prevented']}")
     return 0

@@ -1,0 +1,47 @@
+# Data sources and the datasets built from them. Split paths are relative to data/raw/<source id>/.
+
+[source.cardd-roboflow-v6]
+kind = "roboflow"
+format = "coco-seg"
+workspace = "auto-industry"
+project = "car-damage-detection-vyhvw"
+version = 6
+export_format = "coco-segmentation"
+terms = "CarDD (Wang et al., IEEE T-ITS 2023) re-uploaded to Roboflow Universe, labelled CC BY 4.0 there. Used under CarDD terms: non-commercial research and education only; images are not redistributed."
+
+[source.cardd-roboflow-v6.splits]
+train = { annotations = "train/_annotations.coco.json" }
+valid = { annotations = "valid/_annotations.coco.json" }
+test = { annotations = "test/_annotations.coco.json" }
+
+[source.carparts-seg]
+kind = "url"
+format = "yolo-seg"
+url = "https://github.com/ultralytics/assets/releases/download/v0.0.0/carparts-seg.zip"
+class_names_file = "carparts-seg.yaml"
+terms = "Roboflow Universe car-seg by Gianmarco Russo, CC BY 4.0, as distributed by Ultralytics."
+
+[source.carparts-seg.splits]
+train = { images = "images/train", labels = "labels/train" }
+valid = { images = "images/val", labels = "labels/val" }
+test = { images = "images/test", labels = "labels/test" }
+
+[source.legacy-course-subset]
+kind = "local"
+format = "yolo-seg"
+class_names_file = "data.yaml"
+terms = "Roboflow Universe exports used by the original course project, CC BY 4.0, mixed sources."
+
+[source.legacy-course-subset.splits]
+train = { images = "train/images", labels = "train/labels" }
+valid = { images = "valid/images", labels = "valid/labels" }
+test = { images = "test/images", labels = "test/labels" }
+
+[dataset.damage-v1]
+taxonomy = "damage"
+sources = ["cardd-roboflow-v6"]
+protect_golden = "evals/golden/v0/claims.jsonl"
+
+[dataset.parts-v1]
+taxonomy = "parts"
+sources = ["carparts-seg"]

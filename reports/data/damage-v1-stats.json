@@ -1,0 +1,41 @@
+{
+ "clusters": 3995,
+ "dataset": "damage-v1",
+ "ignored_labels": {},
+ "images": {
+  "test": 374,
+  "train": 2812,
+  "valid": 814
+ },
+ "instances": {
+  "test": {
+   "crack": 70,
+   "dent": 236,
+   "glass_shatter": 71,
+   "lamp_broken": 69,
+   "scratch": 307,
+   "tire_flat": 32
+  },
+  "train": {
+   "crack": 651,
+   "dent": 1805,
+   "glass_shatter": 474,
+   "lamp_broken": 494,
+   "scratch": 2556,
+   "tire_flat": 225
+  },
+  "valid": {
+   "crack": 177,
+   "dent": 502,
+   "glass_shatter": 136,
+   "lamp_broken": 141,
+   "scratch": 732,
+   "tire_flat": 62
+  }
+ },
+ "leaks_prevented": 4,
+ "taxonomy": "damage",
+ "validation_warnings": {
+  "tiny_instance": 2
+ }
+}
