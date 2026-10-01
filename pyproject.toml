@@ -33,6 +33,7 @@ vision = [
 autolabel = [
   "opencv-python-headless>=4.9",
   "torch>=2.4",
+  "torchvision>=0.19",
   "transformers>=5.0",
 ]
 review = [
