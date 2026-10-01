@@ -1,80 +1,43 @@
-# Python
+# --- Python ---
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environment
-venv/
-env/
-ENV/
+build/
+dist/
 .venv/
-.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-# IDE
+# --- Secrets (never commit) ---
+.env
+.env.*
+!.env.example
+
+# --- Editors / OS ---
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Model weights and data
-Weights/*.pt
-!Weights/.gitkeep
-*.onnx
-*.engine
-
-# Output files
-Output/
-results/
-runs/
-*.jpg
-*.png
-*.jpeg
-!Media/dent_*.jpg
-
-# Logs
-*.log
-logs/
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Streamlit
-.streamlit/
+# --- Notebooks ---
+.ipynb_checkpoints/
 
-# FastAPI
-.pytest_cache/
+# --- Data & models: versioned with DVC (M2), never with git ---
+/data/*
+!/data/README.md
+/models/*
+!/models/README.md
+*.pt
+*.onnx
+*.engine
 
-# Data
-datasets/
-data/
-*.csv
-*.json
-!config.json
-
-# Temporary files
-tmp/
-temp/
-*.tmp
+# --- Experiment & run outputs ---
+runs/
+mlruns/
+mlartifacts/
+outputs/
+*.log
