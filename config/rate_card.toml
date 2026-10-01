@@ -1,0 +1,43 @@
+# Fictional USD repair ranges [low, high] for a learning project. Not real market prices.
+version = "rate-card-2026.10-v0"
+
+[severity]
+# Damage box area as a fraction of the image.
+# Below minor_max is minor, below moderate_max is moderate, otherwise severe.
+minor_max_fraction = 0.05
+moderate_max_fraction = 0.20
+
+[rates.crack]
+minor = [200, 500]
+moderate = [500, 1500]
+severe = [1500, 4000]
+
+[rates.dent]
+minor = [150, 400]
+moderate = [400, 1200]
+severe = [1200, 3500]
+
+[rates.glass_shatter]
+minor = [250, 600]
+moderate = [600, 1200]
+severe = [1200, 2500]
+
+[rates.lamp_broken]
+minor = [150, 400]
+moderate = [400, 900]
+severe = [900, 1800]
+
+[rates.scratch]
+minor = [100, 300]
+moderate = [300, 800]
+severe = [800, 2000]
+
+[rates.tire_flat]
+minor = [100, 250]
+moderate = [150, 350]
+severe = [200, 600]
+
+[rates.smash]
+minor = [800, 2000]
+moderate = [2000, 5000]
+severe = [5000, 12000]
