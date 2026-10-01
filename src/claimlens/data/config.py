@@ -23,7 +23,7 @@ class SourceConfig(Frozen):
     kind: Literal["roboflow", "url", "local"]
     format: Literal["coco-seg", "yolo-seg"]
     terms: str
-    splits: dict[str, SplitLayout]
+    splits: dict[Literal["train", "valid", "test"], SplitLayout]
     class_names_file: str | None = None
     url: str | None = None
     workspace: str | None = None

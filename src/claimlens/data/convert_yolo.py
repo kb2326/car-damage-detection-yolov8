@@ -46,6 +46,8 @@ def convert_yolo_split(
     taxonomy: Taxonomy,
     repo_root: Path,
 ) -> ConversionResult:
+    if not labels_dir.is_dir():
+        raise FileNotFoundError(f"labels folder not found: {labels_dir}")
     ignored: Counter[str] = Counter()
     records: list[ImageRecord] = []
     image_paths = sorted(p for p in images_dir.iterdir() if p.suffix.lower() in _IMAGE_SUFFIXES)

@@ -53,6 +53,11 @@ def convert_coco_split(
                     f"{annotations_file}: annotation {annotation['id']} uses RLE masks, "
                     "which are not supported"
                 )
+            if not segmentation:
+                raise ValueError(
+                    f"{annotations_file}: annotation {annotation['id']} has no polygon "
+                    "(box-only annotations are not supported)"
+                )
             for part in segmentation:
                 annotations.append(Annotation(label=label, polygon=_normalise(part, width, height)))
         match = _CARDD_ID.match(file_name)

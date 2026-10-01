@@ -27,9 +27,9 @@ stages:
       size: 18252
     - path: src/claimlens/data
       hash: md5
-      md5: 9086094215eff2ddabb4ab8290a1aa1d.dir
-      size: 90175
-      nfiles: 26
+      md5: 5bcd69dac396572f458b0bfef422d48f.dir
+      size: 33260
+      nfiles: 13
     outs:
     - path: data/interim/damage-v1
       hash: md5
@@ -38,8 +38,8 @@ stages:
       nfiles: 3
     - path: data/processed/damage-v1
       hash: md5
-      md5: d427dd47a6f3b0acbdd9817f0e3f3ac3.dir
-      size: 347098906
+      md5: cc56ac5162bfc4fdad163862267fedbd.dir
+      size: 347098822
       nfiles: 8001
     - path: reports/data/damage-v1-stats.json
       hash: md5
@@ -71,9 +71,9 @@ stages:
       nfiles: 7668
     - path: src/claimlens/data
       hash: md5
-      md5: 9086094215eff2ddabb4ab8290a1aa1d.dir
-      size: 90175
-      nfiles: 26
+      md5: 5bcd69dac396572f458b0bfef422d48f.dir
+      size: 33260
+      nfiles: 13
     outs:
     - path: data/interim/parts-v1
       hash: md5
@@ -82,8 +82,8 @@ stages:
       nfiles: 3
     - path: data/processed/parts-v1
       hash: md5
-      md5: c85e5c65c41521fedd6fed6b8854836d.dir
-      size: 141344697
+      md5: 9764aa90d16ea83ad39939789180e590.dir
+      size: 141344614
       nfiles: 7667
     - path: reports/data/parts-v1-stats.json
       hash: md5

@@ -15,12 +15,17 @@ from claimlens.data.validate import polygon_area
 YOLO_SPLIT = {"train": "train", "valid": "val", "test": "test"}
 
 
+def _clamp(polygon: Sequence[float]) -> tuple[float, ...]:
+    return tuple(min(max(v, 0.0), 1.0) for v in polygon)
+
+
 def _usable(polygon: Sequence[float]) -> bool:
-    return len(polygon) >= 6 and len(polygon) % 2 == 0 and polygon_area(polygon) > 0
+    """Checked after clamping, so a sliver outside the image cannot become a zero-area line."""
+    return len(polygon) >= 6 and len(polygon) % 2 == 0 and polygon_area(_clamp(polygon)) > 0
 
 
 def _label_line(class_index: int, polygon: Sequence[float]) -> str:
-    coords = " ".join(f"{min(max(v, 0.0), 1.0):.6f}" for v in polygon)
+    coords = " ".join(f"{v:.6f}" for v in _clamp(polygon))
     return f"{class_index} {coords}"
 
 
@@ -32,9 +37,10 @@ def _link_or_copy(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def _data_yaml(out_dir: Path, taxonomy: Taxonomy) -> str:
+def _data_yaml(taxonomy: Taxonomy) -> str:
+    # No `path:` key: Ultralytics then resolves splits relative to this file, so the dataset
+    # works wherever it is checked out (another machine, Colab) and its DVC hash is stable.
     lines = [
-        f"path: {out_dir.resolve().as_posix()}",
         "train: images/train",
         "val: images/val",
         "test: images/test",
@@ -74,5 +80,5 @@ def export_yolo_seg(
         label_path.write_text("".join(line + "\n" for line in lines), encoding="utf-8", newline="\n")
         counts[yolo_split] += 1
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "data.yaml").write_text(_data_yaml(out_dir, taxonomy), encoding="utf-8", newline="\n")
+    (out_dir / "data.yaml").write_text(_data_yaml(taxonomy), encoding="utf-8", newline="\n")
     return dict(counts)
