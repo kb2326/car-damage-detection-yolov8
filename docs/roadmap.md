@@ -80,14 +80,17 @@ written plan.*
 *Build the thinnest possible version of the whole story, end to end, so every later phase improves
 something that already works.*
 
-- [ ] Data types for claims, photos, findings and decisions (Pydantic)
-- [ ] Tamper-proof event log with hash chain
-- [ ] Rebuild claim state from events (fold) and resume a claim
-- [ ] Pipeline stages wired up, using the old model with its labels fixed
-- [ ] Placeholder triage agent (no LLM yet)
-- [ ] Decision rules (§11 of the spec)
-- [ ] 50 golden test claims, plus a script that scores the pipeline on them
-- [ ] Command-line demo: one claim in, one decision and an audit trail out
+- [x] Data types for claims, photos, findings and decisions (Pydantic)
+- [x] Tamper-proof event log with hash chain
+- [x] Rebuild claim state from events (fold) and resume a claim
+- [x] Pipeline stages wired up, using the old model with its labels fixed
+- [x] Placeholder triage agent (no LLM yet)
+- [x] Decision rules (§11 of the spec)
+- [x] 50 golden test claims, plus a script that scores the pipeline on them
+- [ ] **You:** review 10 golden claims (g001, g004, ... g028)
+- [x] Command-line demo: one claim in, one decision and an audit trail out
+- [x] Baseline: route accuracy 0.78, escalation recall 1.00, 0 of 11 correct fast-tracks
+- [ ] Retro, and LinkedIn series part 2/9
 
 ## M2 · Data engine (Oct 19 – Nov 1)
 
