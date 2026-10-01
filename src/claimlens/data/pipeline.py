@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from PIL import Image
+
 from claimlens.data.config import SourceConfig, load_data_config
 from claimlens.data.convert_coco import convert_coco_split
 from claimlens.data.convert_yolo import convert_yolo_split, read_class_names
@@ -66,13 +68,23 @@ def convert_source(
     return combined
 
 
+def _readable_image(path: Path) -> bool:
+    try:
+        with Image.open(path) as image:
+            image.verify()
+    except Exception:
+        return False
+    return True
+
+
 def golden_image_paths(golden_file: Path, repo_root: Path) -> list[Path]:
+    """Golden photos that are real images. Unreadable test files cannot leak into training."""
     paths: dict[str, Path] = {}
     for case in load_golden(golden_file):
         photos = [*case.photos, *(p for prior in case.prior_claims for p in prior.photos)]
         for photo in photos:
             path = repo_root / photo
-            if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES:
+            if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES and _readable_image(path):
                 paths.setdefault(path.as_posix(), path)
     return list(paths.values())
 

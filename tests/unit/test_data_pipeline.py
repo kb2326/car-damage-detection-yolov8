@@ -97,6 +97,27 @@ def test_build_excludes_images_near_golden_photos(tmp_path: Path) -> None:
     assert list(processed.rglob("toy__g.*")) == []
 
 
+def test_unreadable_golden_photo_is_skipped(tmp_path: Path) -> None:
+    config = _repo(tmp_path)
+    (tmp_path / "golden" / "not_an_image.jpg").write_text("text", encoding="utf-8")
+    write_golden(
+        tmp_path / "golden.jsonl",
+        [
+            GoldenClaim(
+                case_id="g001",
+                scenario="unusable_photo",
+                policy_id="P-1001",
+                description="",
+                photos=("golden/not_an_image.jpg", "golden/g.jpg"),
+                expected_route=Route.ADJUSTER_REVIEW,
+                label_source="scenario",
+            )
+        ],
+    )
+    build_dataset("toy-v1", repo_root=tmp_path, config_dir=config)
+    assert _splits(tmp_path)["toy:g"] == "excluded"
+
+
 def test_build_stops_on_contract_violation(tmp_path: Path) -> None:
     config = _repo(tmp_path)
     labels = tmp_path / "data" / "raw" / "toy" / "train" / "labels" / "b.txt"
