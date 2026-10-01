@@ -1,0 +1,6 @@
+# Decision policy thresholds (spec section 11). Versioned with the code.
+version = "decision-policy-v0"
+fraud_score_threshold = 0.5
+max_fast_track_cost_usd = 3000
+# Provisional value for the legacy model. Recalibrated from the PR curve in M3.
+min_finding_confidence = 0.40

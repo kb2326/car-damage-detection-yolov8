@@ -218,16 +218,20 @@ an idempotency key).
 
 Evaluated in order; the first matching rule wins. All thresholds live in versioned config.
 
-| Rule | Route |
-|---|---|
-| Any fraud signal score ≥ 0.5, or a reused image is detected | `FRAUD_REVIEW` |
-| Photo set incomplete or quality gate failed after 2 retries | `ADJUSTER_REVIEW` |
-| Coverage not confirmed by `get_coverage` | `ADJUSTER_REVIEW` |
-| Cost estimate high bound > $3,000 | `ADJUSTER_REVIEW` |
-| Any damage finding below the calibrated confidence threshold τ (chosen in M3 from the PR curve) | `ADJUSTER_REVIEW` |
-| Agent confidence `low`, or open questions not empty | `ADJUSTER_REVIEW` |
-| Agent suggests anything other than fast-track | `ADJUSTER_REVIEW` |
-| Otherwise | `FAST_TRACK` (payment still requires a human approval token) |
+| Rule | Condition | Route |
+|---|---|---|
+| R1 | Any fraud signal score ≥ 0.5 (for example, a reused photo) | `FRAUD_REVIEW` |
+| R2 | Any processing stage failed (model, tool or agent error) | `ADJUSTER_REVIEW` |
+| R3 | No usable photos (all rejected by the quality gate) | `ADJUSTER_REVIEW` |
+| R4 | Coverage not confirmed by `get_coverage` | `ADJUSTER_REVIEW` |
+| R5 | No cost estimate, or its high bound > $3,000 | `ADJUSTER_REVIEW` |
+| R6 | Any damage finding below the calibrated confidence threshold τ (chosen in M3 from the PR curve) | `ADJUSTER_REVIEW` |
+| R7 | No agent recommendation, agent confidence `low`, or open questions not empty | `ADJUSTER_REVIEW` |
+| R8 | Agent suggests anything other than fast-track | `ADJUSTER_REVIEW` |
+| R9 | Otherwise | `FAST_TRACK` (payment still requires a human approval token) |
+
+R2 implements the fail-safe behaviour from section 17. From M6 the intake agent requests up to two
+retakes before R3 applies.
 
 ## 12. Data and models
 
