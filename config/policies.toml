@@ -1,0 +1,49 @@
+# Fictional policies for development and evaluation. Not real people or insurers.
+
+[[policy]]
+policy_id = "P-1001"
+status = "active"
+collision = true
+deductible = 250
+
+[[policy]]
+policy_id = "P-1002"
+status = "active"
+collision = true
+deductible = 500
+
+[[policy]]
+policy_id = "P-1003"
+status = "active"
+collision = true
+deductible = 500
+
+[[policy]]
+policy_id = "P-1004"
+status = "active"
+collision = true
+deductible = 1000
+
+[[policy]]
+policy_id = "P-1005"
+status = "active"
+collision = true
+deductible = 500
+
+[[policy]]
+policy_id = "P-1006"
+status = "active"
+collision = true
+deductible = 250
+
+[[policy]]
+policy_id = "P-2001"
+status = "lapsed"
+collision = true
+deductible = 500
+
+[[policy]]
+policy_id = "P-2002"
+status = "active"
+collision = false
+deductible = 500
