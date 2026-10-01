@@ -44,6 +44,7 @@ LinkedIn only, as a single post after M8. Material is collected here as each mil
 |---|---|
 | M0 | Audit of the course project: every label the app showed was wrong (7-class model, 17-class list); val mAP50 0.137 |
 | M1 | Working end-to-end skeleton on day one; baseline route accuracy 0.78, escalation recall 1.00, 0 of 11 correct fast-tracks ("safe but not yet useful") |
+| M2 | Roboflow v6 turned out to be CarDD re-uploaded; dedupe found the same dent photo in train and valid under two ids (4 CarDD and 29 parts images moved) |
 
 ---|---|---|
 | 1/9 | M0 | I audited my own deep learning class project. Every label it showed was wrong. |
@@ -96,12 +97,22 @@ something that already works.*
 
 *Better data matters more than a bigger model.*
 
-- [ ] Confirm CarDD license terms
-- [ ] DVC data versioning
-- [ ] Remove duplicates; split by vehicle so test photos are never seen in training
-- [ ] Auto-labelling with Grounding DINO + SAM 2, then human correction in FiftyOne
-- [ ] Choose a car-part dataset
-- [ ] Data card
+**M2a: pipeline (done)**
+
+- [x] Found that Roboflow v6 is CarDD; terms recorded in ADR 0004
+- [ ] **You:** submit the CarDD licence form (https://cardd-ustc.github.io)
+- [x] DVC data versioning (ADR 0005), local remote
+- [x] Taxonomy by name, data contract, converters for COCO and YOLO
+- [x] Exact and perceptual dedupe; whole clusters per split; golden photos protected
+- [x] Car-part dataset chosen (Roboflow `car-seg`, CC BY 4.0)
+- [x] `damage-v1` (4,000 images) and `parts-v1` (3,833 images) built; data card
+
+**M2b: review and labelling (next)**
+
+- [ ] FiftyOne visual review of both datasets
+- [ ] Grounding DINO + SAM 2 part masks on a damage subset (Colab), human-corrected fusion set
+- [ ] Golden claims v1: minor-damage cases from the frozen CarDD test split; drop duplicate `crashed454` copies
+- [ ] Optional: move the DVC remote to DagsHub
 
 ## M3 · Vision models (Nov 2–15)
 

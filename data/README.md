@@ -1,28 +1,38 @@
 # Data
 
-Datasets live here on disk but are **never committed to git**. From M2 they are versioned with
-[DVC](https://dvc.org); until then, re-download sources from the links below.
+Datasets live here on disk but are **never committed to git**. They are versioned with
+[DVC](https://dvc.org): git holds only the `.dvc` pointer files, `dvc.yaml` and `dvc.lock`.
+Full documentation of contents, terms and cleaning: [`docs/data-card.md`](../docs/data-card.md).
 
-## Layout (convention)
+## Layout
 
 | Folder | Rule |
 |---|---|
-| `raw/` | Exactly as downloaded. **Immutable**: never edit files in place. |
-| `interim/` | Intermediate outputs (deduplicated, relabelled, converted). Reproducible from `raw/`. |
-| `processed/` | Final training-ready splits. Reproducible from `raw/` via `training/` pipelines. |
+| `raw/` | Exactly as downloaded, with a `MANIFEST.json` of checksums. **Immutable**: never edit in place. |
+| `interim/` | Records, near-duplicate clusters and split assignments. Rebuilt by `dvc repro`. |
+| `processed/` | YOLO segmentation datasets ready for training. Rebuilt by `dvc repro`. |
+
+## Workflow
+
+```bash
+# First time on a machine (needs ROBOFLOW_API_KEY in .env for the CarDD copy)
+uv run claimlens data fetch cardd-roboflow-v6
+uv run claimlens data fetch carparts-seg
+
+# Or, with a shared DVC remote configured
+uv run dvc pull
+
+# Rebuild every dataset whose inputs changed, then inspect the metrics
+uv run dvc repro
+uv run dvc metrics show
+```
 
 ## Sources
 
-### `raw/legacy-course-subset/`
+| Folder | What it is | Used for | Terms |
+|---|---|---|---|
+| `raw/cardd-roboflow-v6/` | Roboflow copy of **CarDD**: 4,000 images, 6 damage classes, COCO polygons | `damage-v1` | CarDD terms: non-commercial research and education; do not redistribute |
+| `raw/carparts-seg/` | Roboflow `car-seg` via Ultralytics: 3,833 images, 23 part classes | `parts-v1` | CC BY 4.0 |
+| `raw/legacy-course-subset/` | The 339-image course-project folder (7 classes incl. `smash`, mixed sources) | golden claims only | CC BY 4.0, mixed |
 
-- **What it is:** the 339-image folder used by the original course project. It is **not** Roboflow
-  v6 (which has 4,000 images and 6 classes); it has 7 classes including `smash` and mixes CarDD
-  images with other Roboflow Universe sources.
-- **Use:** golden claims only (`evals/golden/v0`), never training.
-- **Terms:** Roboflow Universe exports, CC BY 4.0, mixed sources.
-- **Known issues:** see the audit in [`legacy/README.md`](../legacy/README.md)
-
-### CarDD (planned, M2)
-
-Wang et al., *CarDD: A New Dataset for Vision-based Car Damage Detection*, IEEE T-ITS 2023.
-License terms must be confirmed before use or redistribution of derived models.
+Why the CarDD terms apply to the Roboflow copy: [ADR 0004](../docs/adr/0004-data-sources-and-licensing.md).

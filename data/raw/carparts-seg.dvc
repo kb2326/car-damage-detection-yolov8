@@ -1,0 +1,6 @@
+outs:
+- md5: a008a1f49dd5e752d186d834145efbc2.dir
+  size: 148194000
+  nfiles: 7668
+  hash: md5
+  path: carparts-seg
