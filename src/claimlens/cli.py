@@ -1,4 +1,4 @@
-"""Command-line interface: `claimlens run | show | verify | eval-triage`."""
+"""Command-line interface: `claimlens run | resume | show | verify | eval-triage`."""
 
 from __future__ import annotations
 
@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--policy", required=True, help="policy number, e.g. P-1001")
     run.add_argument("--description", default="", help="what happened")
     run.add_argument("photos", nargs="+", type=Path, help="photo files")
+
+    resume = sub.add_parser("resume", help="finish processing a claim that was interrupted")
+    resume.add_argument("claim_id", type=UUID)
 
     show = sub.add_parser("show", help="print a claim's decision and audit trail")
     show.add_argument("claim_id", type=UUID)
@@ -108,6 +111,8 @@ def main(
     try:
         if args.command == "run":
             return _run(args, store, detector_factory)
+        if args.command == "resume":
+            return _resume(args, store, detector_factory)
         return _inspect(args, store)
     finally:
         store.close()
@@ -119,8 +124,28 @@ def _run(args: argparse.Namespace, store: SQLiteEventStore, factory: DetectorFac
     claim_id = submit_claim(
         store, blobs, policy_id=args.policy, description=args.description, photo_paths=args.photos
     )
+    print(
+        f"Submitted claim {claim_id} (if interrupted: claimlens resume {claim_id})",
+        file=sys.stderr,
+        flush=True,
+    )
     process_claim(claim_id, deps)
     print(format_summary(fold(store.load(claim_id))))
+    return 0
+
+
+def _resume(args: argparse.Namespace, store: SQLiteEventStore, factory: DetectorFactory) -> int:
+    try:
+        store.load(args.claim_id)
+    except ClaimNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except ChainIntegrityError as exc:
+        print(f"error: audit log failed verification: {exc}", file=sys.stderr)
+        return 1
+    deps = make_deps(store, BlobStore(args.blobs), args.config, factory(args.weights))
+    process_claim(args.claim_id, deps)
+    print(format_summary(fold(store.load(args.claim_id))))
     return 0
 
 

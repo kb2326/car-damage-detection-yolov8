@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from claimlens.quality import QualityConfig, check_quality
@@ -38,3 +39,12 @@ def test_rejects_an_unsupported_format(tmp_path: Path) -> None:
     result = check_quality(path, QualityConfig())
     assert not result.ok
     assert result.reason == "unsupported format BMP"
+
+
+def test_rejects_a_decompression_bomb_instead_of_crashing(
+    make_image: Callable[..., Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1000)
+    result = check_quality(make_image("bomb.png"), QualityConfig())
+    assert not result.ok
+    assert result.reason == "image has too many pixels to decode safely"

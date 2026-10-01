@@ -6,14 +6,13 @@ from uuid import UUID
 import pytest
 
 from claimlens.cli import main
-from tests.fakes import CONFIG_DIR, FakeDetector
+from tests.fakes import CONFIG_DIR, FakeDetector, SimulatedCrashError
 
 
-def _cli(tmp_path: Path, *args: str) -> int:
+def _cli(tmp_path: Path, *args: str, detector: FakeDetector | None = None) -> int:
     base = ["--db", str(tmp_path / "claims.db"), "--blobs", str(tmp_path / "blobs")]
-    return main(
-        [*base, "--config", str(CONFIG_DIR), *args], detector_factory=lambda _: FakeDetector()
-    )
+    chosen = detector or FakeDetector()
+    return main([*base, "--config", str(CONFIG_DIR), *args], detector_factory=lambda _: chosen)
 
 
 def _run_claim(
@@ -71,3 +70,19 @@ def test_verify_detects_tampering(
 def test_unknown_claim_returns_2(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert _cli(tmp_path, "show", str(UUID(int=5))) == 2
     assert "no events found" in capsys.readouterr().err
+
+
+def test_resume_finishes_a_claim_that_crashed_mid_run(
+    tmp_path: Path, make_image: Callable[..., Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    photo = str(make_image("a.jpg"))
+    with pytest.raises(SimulatedCrashError):
+        _cli(tmp_path, "run", "--policy", "P-1001", photo, detector=FakeDetector(crash_on="p1"))
+    submitted = capsys.readouterr().err
+    claim_id = submitted.split("Submitted claim ")[1].split()[0]
+
+    assert _cli(tmp_path, "resume", claim_id) == 0
+
+    out = capsys.readouterr().out
+    assert f"Claim: {claim_id}" in out
+    assert "Route: FAST_TRACK (R9)" in out

@@ -37,7 +37,12 @@ def check_quality(path: Path, config: QualityConfig) -> QualityResult:
         with Image.open(path) as image:
             image_format = image.format or "unknown"
             width, height = image.size
+    except Image.DecompressionBombError:
+        return QualityResult(ok=False, reason="image has too many pixels to decode safely")
     except (UnidentifiedImageError, OSError, SyntaxError):
+        return QualityResult(ok=False, reason="not a readable image")
+    except Exception:
+        # Pillow plugins can raise other errors on malformed files; never crash the claim.
         return QualityResult(ok=False, reason="not a readable image")
     if image_format not in config.allowed_formats:
         return QualityResult(ok=False, reason=f"unsupported format {image_format}")

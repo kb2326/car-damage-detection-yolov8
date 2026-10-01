@@ -54,6 +54,7 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = ["ultralytics", "ultralytics.*"]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.coverage.run]
 omit = ["*/claimlens/vision/legacy_yolo.py"]

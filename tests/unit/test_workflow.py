@@ -11,7 +11,13 @@ from claimlens.events.projection import PhotoStatus, fold
 from claimlens.events.store import SQLiteEventStore
 from claimlens.intake import submit_claim
 from claimlens.workflow import PipelineDeps, process_claim
-from tests.fakes import FailingAgent, FakeDetector, SimulatedCrashError, make_test_deps
+from tests.fakes import (
+    FailingAgent,
+    FailingPolicies,
+    FakeDetector,
+    SimulatedCrashError,
+    make_test_deps,
+)
 
 
 def _submit(deps: PipelineDeps, photos: Sequence[Path], policy_id: str = "P-1001") -> UUID:
@@ -162,3 +168,15 @@ def test_tampered_log_stops_processing(
 
     with pytest.raises(ChainIntegrityError):
         process_claim(claim_id, deps)
+
+
+def test_policy_system_outage_is_retried_then_routed_to_adjuster(
+    store: SQLiteEventStore, tmp_path: Path, make_image: Callable[..., Path]
+) -> None:
+    deps = make_test_deps(tmp_path, store, FakeDetector(), policies=FailingPolicies())
+    claim_id = _submit(deps, [make_image("a.jpg")])
+
+    decision = process_claim(claim_id, deps)
+
+    assert (decision.route, decision.rule_id) == (Route.ADJUSTER_REVIEW, "R2")
+    assert fold(store.load(claim_id)).failed("coverage")

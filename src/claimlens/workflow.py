@@ -129,22 +129,47 @@ def _perception_stage(state: ClaimState, deps: PipelineDeps) -> None:
         deps.store.append(state.claim_id, payload, WORKFLOW)
 
 
+def _guarded(
+    state: ClaimState, deps: PipelineDeps, stage: str, build: Callable[[], Payload]
+) -> None:
+    """Run a once-per-claim stage with retries; record StageFailed instead of crashing."""
+    outcome = _attempt(build)
+    payload = (
+        StageFailed(stage=stage, error=_describe(outcome))
+        if isinstance(outcome, Exception)
+        else outcome
+    )
+    deps.store.append(state.claim_id, payload, WORKFLOW)
+
+
 def _integrity_stage(state: ClaimState, deps: PipelineDeps) -> None:
-    if not state.integrity_checked:
-        signals = check_integrity(state, deps.store)
-        deps.store.append(state.claim_id, IntegrityChecked(signals=signals), WORKFLOW)
+    if not state.integrity_checked and not state.failed("integrity"):
+        _guarded(
+            state,
+            deps,
+            "integrity",
+            lambda: IntegrityChecked(signals=check_integrity(state, deps.store)),
+        )
 
 
 def _pricing_stage(state: ClaimState, deps: PipelineDeps) -> None:
-    if state.cost_estimate is None:
-        estimate = estimate_cost(state.findings, deps.rate_card)
-        deps.store.append(state.claim_id, CostEstimated(estimate=estimate), WORKFLOW)
+    if state.cost_estimate is None and not state.failed("pricing"):
+        _guarded(
+            state,
+            deps,
+            "pricing",
+            lambda: CostEstimated(estimate=estimate_cost(state.findings, deps.rate_card)),
+        )
 
 
 def _coverage_stage(state: ClaimState, deps: PipelineDeps) -> None:
-    if state.coverage is None:
-        coverage = deps.policies.get_coverage(state.policy_id)
-        deps.store.append(state.claim_id, PolicyRetrieved(coverage=coverage), WORKFLOW)
+    if state.coverage is None and not state.failed("coverage"):
+        _guarded(
+            state,
+            deps,
+            "coverage",
+            lambda: PolicyRetrieved(coverage=deps.policies.get_coverage(state.policy_id)),
+        )
 
 
 def _agent_stage(state: ClaimState, deps: PipelineDeps) -> None:

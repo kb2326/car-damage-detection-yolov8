@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from claimlens.events.envelope import (
     GENESIS_HASH,
     Actor,
+    ChainIntegrityError,
     ClaimEvent,
     compute_hash,
     verify_chain,
@@ -89,11 +90,18 @@ class SQLiteEventStore:
 
     def load(self, claim_id: UUID) -> list[ClaimEvent]:
         rows = self._conn.execute(
-            "SELECT data FROM events WHERE claim_id = ? ORDER BY seq", (str(claim_id),)
+            "SELECT seq, type, hash, data FROM events WHERE claim_id = ? ORDER BY seq",
+            (str(claim_id),),
         ).fetchall()
         if not rows:
             raise ClaimNotFoundError(claim_id)
-        events = [ClaimEvent.model_validate_json(row[0]) for row in rows]
+        events: list[ClaimEvent] = []
+        for seq, event_type, event_hash, data in rows:
+            event = ClaimEvent.model_validate_json(data)
+            indexed = (event.claim_id, event.seq, event.type, event.hash)
+            if indexed != (claim_id, seq, event_type, event_hash):
+                raise ChainIntegrityError(claim_id, seq, "index columns do not match event data")
+            events.append(event)
         verify_chain(events)
         return events
 
@@ -104,7 +112,8 @@ class SQLiteEventStore:
     def claims_with_photo(self, sha256: str) -> set[UUID]:
         rows = self._conn.execute(
             "SELECT DISTINCT claim_id FROM events "
-            "WHERE type = ? AND json_extract(data, '$.payload.sha256') = ?",
+            "WHERE json_extract(data, '$.type') = ? "
+            "AND json_extract(data, '$.payload.sha256') = ?",
             (EventType.PHOTO_UPLOADED.value, sha256),
         ).fetchall()
         return {UUID(row[0]) for row in rows}

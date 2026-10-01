@@ -8,10 +8,16 @@ from claimlens.agent import TriageAgent
 from claimlens.agent.stub import StubTriageAgent
 from claimlens.blobs import BlobStore
 from claimlens.decision import load_decision_config
-from claimlens.domain import AgentRecommendation, BoundingBox, DamageFinding, DamageType
+from claimlens.domain import (
+    AgentRecommendation,
+    BoundingBox,
+    Coverage,
+    DamageFinding,
+    DamageType,
+)
 from claimlens.events.projection import ClaimState
 from claimlens.events.store import SQLiteEventStore
-from claimlens.policy import load_policies
+from claimlens.policy import PolicyRepository, load_policies
 from claimlens.pricing import load_rate_card
 from claimlens.workflow import PipelineDeps
 
@@ -66,17 +72,28 @@ class FailingAgent:
         raise RuntimeError("LLM provider timeout")
 
 
+class FailingPolicies(PolicyRepository):
+    """Policy system that is down, like a remote service timing out."""
+
+    def __init__(self) -> None:
+        super().__init__([])
+
+    def get_coverage(self, policy_id: str) -> Coverage:
+        raise ConnectionError("policy system unavailable")
+
+
 def make_test_deps(
     workdir: Path,
     store: SQLiteEventStore,
     detector: FakeDetector,
     agent: TriageAgent | None = None,
+    policies: PolicyRepository | None = None,
 ) -> PipelineDeps:
     return PipelineDeps(
         store=store,
         blobs=BlobStore(workdir / "blobs"),
         detector=detector,
-        policies=load_policies(CONFIG_DIR / "policies.toml"),
+        policies=policies or load_policies(CONFIG_DIR / "policies.toml"),
         rate_card=load_rate_card(CONFIG_DIR / "rate_card.toml"),
         decision_config=load_decision_config(CONFIG_DIR / "decision_policy.toml"),
         agent=agent or StubTriageAgent(),

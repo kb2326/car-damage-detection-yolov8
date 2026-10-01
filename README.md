@@ -166,6 +166,7 @@ uv sync --group vision           # adds Ultralytics (large download)
 uv run claimlens run --policy P-1001 --description "Scraped a pole" tests/fixtures/images/dent_1.jpg
 uv run claimlens show <claim-id>     # decision and audit trail
 uv run claimlens verify <claim-id>   # check the hash chain
+uv run claimlens resume <claim-id>   # finish a claim that was interrupted
 ```
 
 ## Roadmap

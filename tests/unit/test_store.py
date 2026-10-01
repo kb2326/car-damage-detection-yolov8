@@ -87,3 +87,33 @@ def test_store_persists_across_connections(tmp_path: Path) -> None:
     second = SQLiteEventStore(path)
     assert len(second.load(CLAIM_A)) == 1
     second.close()
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "UPDATE events SET type = 'Edited' WHERE seq = 2",
+        "UPDATE events SET hash = 'x' WHERE seq = 2",
+    ],
+)
+def test_edited_index_columns_are_detected(tmp_path: Path, statement: str) -> None:
+    path = tmp_path / "events.db"
+    event_store = SQLiteEventStore(path)
+    event_store.append(CLAIM_A, _report(), ACTOR)
+    event_store.append(CLAIM_A, _photo("p1", "a" * 64), ACTOR)
+    with sqlite3.connect(path) as conn:
+        conn.execute(statement)
+    with pytest.raises(ChainIntegrityError, match="index columns"):
+        event_store.load(CLAIM_A)
+    event_store.close()
+
+
+def test_photo_lookup_ignores_the_editable_type_column(tmp_path: Path) -> None:
+    path = tmp_path / "events.db"
+    event_store = SQLiteEventStore(path)
+    event_store.append(CLAIM_A, _report(), ACTOR)
+    event_store.append(CLAIM_A, _photo("p1", "c" * 64), ACTOR)
+    with sqlite3.connect(path) as conn:
+        conn.execute("UPDATE events SET type = 'Edited' WHERE seq = 2")
+    assert event_store.claims_with_photo("c" * 64) == {CLAIM_A}
+    event_store.close()
