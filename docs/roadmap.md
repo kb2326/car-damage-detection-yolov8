@@ -34,18 +34,18 @@ At the start of every phase, Claude explains:
 6. **New terms**: a short glossary
 
 At the end of every phase: a recap, what you learned, three quick questions to check your
-understanding, a short retrospective in `docs/retros/`, and the next part of the LinkedIn series.
+understanding, and a short retrospective in `docs/retros/`.
 
-## LinkedIn series: "Building an AI claims adjuster in public"
+## LinkedIn: one post at the end
 
-LinkedIn only, posted as one numbered series. One part per milestone, each posted after that
-milestone's demo works. No standalone posts in between.
+LinkedIn only, as a single post after M8. Material is collected here as each milestone finishes:
 
-Every part uses the same format: a one-line hook, what was built, one visual, one lesson learned,
-a link to the repo, and a teaser for the next part.
+| Milestone | Story material |
+|---|---|
+| M0 | Audit of the course project: every label the app showed was wrong (7-class model, 17-class list); val mAP50 0.137 |
+| M1 | Working end-to-end skeleton on day one; baseline route accuracy 0.78, escalation recall 1.00, 0 of 11 correct fast-tracks ("safe but not yet useful") |
 
-| Part | After | Working title |
-|---|---|---|
+---|---|---|
 | 1/9 | M0 | I audited my own deep learning class project. Every label it showed was wrong. |
 | 2/9 | M1 | An ugly end-to-end system on day 10, and why that beats a perfect model |
 | 3/9 | M2 | Labelling thousands of images with foundation models |
@@ -73,7 +73,7 @@ written plan.*
 - [x] Commit, open a pull request, CI passes, merge to `main` (PR #1)
 - [x] PR/FAQ: the launch press release, written first (`docs/prfaq.md`)
 - [ ] Implementation plan for M1
-- [ ] Retro, and LinkedIn series part 1/9
+- [x] Retro
 
 ## M1 · Walking skeleton (Oct 8–18)
 
@@ -90,7 +90,7 @@ something that already works.*
 - [ ] **You:** review 10 golden claims (g001, g004, ... g028)
 - [x] Command-line demo: one claim in, one decision and an audit trail out
 - [x] Baseline: route accuracy 0.78, escalation recall 1.00, 0 of 11 correct fast-tracks
-- [ ] Retro, and LinkedIn series part 2/9
+- [x] Retro (`docs/retros/m1-walking-skeleton.md`)
 
 ## M2 · Data engine (Oct 19 – Nov 1)
 
@@ -160,5 +160,5 @@ something that already works.*
 - [ ] Docker image and FastAPI service
 - [ ] Public Gradio demo on Hugging Face Spaces
 - [ ] Drift monitoring (Evidently)
-- [ ] Final write-up, demo video, LinkedIn series part 9/9
+- [ ] Final write-up, demo video, the single LinkedIn post
 - [ ] Stretch: A2A repair-shop partner agent, adjuster copilot
