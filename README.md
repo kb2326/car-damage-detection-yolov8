@@ -157,10 +157,15 @@ legacy/             the original course project, frozen for comparison
 Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync                      # create .venv with Python 3.12 and install dev tools
-uv run pre-commit install    # run lint/format checks on every commit
-uv run pytest                # tests
-uv run ruff check . && uv run mypy
+uv sync                          # Python 3.12 environment with dev tools
+uv run pre-commit install        # lint and format checks on every commit
+uv run pytest                    # tests (no data, weights or API keys needed)
+
+# Run a claim end to end with the legacy baseline model
+uv sync --group vision           # adds Ultralytics (large download)
+uv run claimlens run --policy P-1001 --description "Scraped a pole" tests/fixtures/images/dent_1.jpg
+uv run claimlens show <claim-id>     # decision and audit trail
+uv run claimlens verify <claim-id>   # check the hash chain
 ```
 
 ## Roadmap
