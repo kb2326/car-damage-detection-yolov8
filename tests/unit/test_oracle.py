@@ -62,3 +62,22 @@ def test_oracle_escalates_expensive_damage() -> None:
 
 def test_oracle_escalates_when_nothing_is_labelled() -> None:
     assert oracle_route([], COVERED, CARD, CONFIG) is Route.ADJUSTER_REVIEW
+
+
+def test_findings_from_record_uses_polygon_extents() -> None:
+    from claimlens.data.records import Annotation, ImageRecord
+    from claimlens.evals.oracle import findings_from_record
+
+    record = ImageRecord(
+        image_id="s:a",
+        source="s",
+        source_split="test",
+        path="a.jpg",
+        width=1000,
+        height=500,
+        annotations=(Annotation(label="scratch", polygon=(0.1, 0.2, 0.3, 0.2, 0.3, 0.6)),),
+    )
+    (finding,) = findings_from_record(record)
+    assert finding.damage_type is DamageType.SCRATCH
+    assert finding.bbox == BoundingBox(x1=100, y1=100, x2=300, y2=300)
+    assert finding.image_area_fraction == pytest.approx(0.08)

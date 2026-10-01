@@ -40,7 +40,7 @@ test = { images = "test/images", labels = "test/labels" }
 [dataset.damage-v1]
 taxonomy = "damage"
 sources = ["cardd-roboflow-v6"]
-protect_golden = "evals/golden/v0/claims.jsonl"
+protect_golden = "evals/golden/v1/claims.jsonl"
 
 [dataset.parts-v1]
 taxonomy = "parts"

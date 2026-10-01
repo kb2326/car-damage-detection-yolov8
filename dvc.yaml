@@ -4,7 +4,7 @@ stages:
     deps:
       - data/raw/cardd-roboflow-v6
       - data/raw/legacy-course-subset
-      - evals/golden/v0/claims.jsonl
+      - evals/golden/v1/claims.jsonl
       - config/datasets.toml
       - config/taxonomy.toml
       - src/claimlens/data
