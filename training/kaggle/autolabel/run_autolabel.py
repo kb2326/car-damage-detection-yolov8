@@ -14,7 +14,8 @@ import zipfile
 from pathlib import Path
 
 REPO = "https://github.com/kb2326/claimlens.git"
-BRANCH = "feat/m2b-review-autolabel"
+# The exact commit this job runs; update it (and re-push the kernel) to run newer code.
+COMMIT = "0396bfd23f9c99a1f4b1748d8c9b1b7a1a176ffe"
 WORK = Path("/tmp/claimlens")
 OUT = Path("/kaggle/working")
 INPUT = Path("/kaggle/input")
@@ -44,7 +45,8 @@ def unpack_bundle() -> None:
 
 def main() -> None:
     run("nvidia-smi")
-    run("git", "clone", "--depth", "1", "-b", BRANCH, REPO, str(WORK))
+    run("git", "clone", "--filter=blob:none", REPO, str(WORK))
+    run("git", "checkout", "--detach", COMMIT, cwd=WORK)
     unpack_bundle()
     run(sys.executable, "-m", "pip", "install", "-q", "uv")
     run("uv", "sync", "--locked", "--no-dev", "--group", "autolabel", cwd=WORK)
@@ -53,7 +55,8 @@ def main() -> None:
         destination = OUT / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(WORK / relative, destination)
-    print("Results copied to /kaggle/working", flush=True)
+    (OUT / "commit.txt").write_text(f"{COMMIT}\n", encoding="utf-8")
+    print(f"Results for commit {COMMIT} copied to /kaggle/working", flush=True)
 
 
 if __name__ == "__main__":

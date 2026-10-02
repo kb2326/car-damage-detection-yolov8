@@ -35,6 +35,9 @@ from claimlens.review.decisions import (
     PartReview,
     apply_golden_review,
     apply_part_review,
+    check_part_review,
+    file_sha256,
+    merge_part_reviews,
     read_review,
     write_review,
 )
@@ -333,6 +336,11 @@ def _review(args: argparse.Namespace) -> int:
                 repo_root=repo_root,
                 name=f"claimlens-{args.job}",
                 damage={r.image_id: r for r in read_records(damage_file)},
+                existing=(
+                    read_review(parts_review, PartReview).decisions
+                    if parts_review.exists()
+                    else None
+                ),
             )
         elif args.action == "launch":
             fiftyone_app.launch_golden_review(
@@ -343,7 +351,9 @@ def _review(args: argparse.Namespace) -> int:
         elif args.action == "export" and args.target == "parts":
             review = fiftyone_app.export_parts_review(
                 f"claimlens-{args.job}", job_id=args.job, reviewer=args.reviewer
-            )
+            ).model_copy(update={"proposals_sha256": file_sha256(parts_file)})
+            if parts_review.exists():
+                review = merge_part_reviews(read_review(parts_review, PartReview), review)
             write_review(parts_review, review)
             print(f"Wrote {len(review.decisions)} decisions to {parts_review}")
         elif args.action == "export":
@@ -353,9 +363,9 @@ def _review(args: argparse.Namespace) -> int:
             write_review(golden_review, golden)
             print(f"Wrote {len(golden.decisions)} decisions to {golden_review}")
         elif args.target == "parts":
-            kept, counts = apply_part_review(
-                read_records(parts_file), read_review(parts_review, PartReview)
-            )
+            review = read_review(parts_review, PartReview)
+            check_part_review(review, job_id=args.job, proposals_sha256=file_sha256(parts_file))
+            kept, counts = apply_part_review(read_records(parts_file), review)
             out = repo_root / "data" / "processed" / args.job / "parts.jsonl"
             write_records(out, kept)
             report = {"job": args.job, "images": len(kept), "counts": counts}

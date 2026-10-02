@@ -35,9 +35,13 @@ stages:
     metrics:
       - reports/data/parts-v1-stats.json:
           cache: false
+  # Frozen: runs on a Kaggle GPU (training/kaggle/autolabel), never by `dvc repro` on a laptop.
+  # To refresh: run the Kaggle job, copy its outputs here, then `dvc commit -f autolabel-fusion-eval-v1`.
   autolabel-fusion-eval-v1:
+    frozen: true
     cmd: uv run --group autolabel claimlens data autolabel fusion-eval-v1
     deps:
+      - data/raw/cardd-roboflow-v6
       - data/interim/damage-v1
       - config/autolabel.toml
       - config/taxonomy.toml
@@ -53,6 +57,8 @@ stages:
       - data/interim/fusion-eval-v1
       - reviews/fusion-eval-v1.json
       - src/claimlens/review/decisions.py
+      - src/claimlens/data/records.py
+      - src/claimlens/cli.py
     outs:
       - data/processed/fusion-eval-v1
     metrics:

@@ -138,12 +138,20 @@ stages:
       nfiles: 1
     - path: reviews/fusion-eval-v1.json
       hash: md5
-      md5: 1c83d8a90e1a1186b66d670916e0f3c4
-      size: 38335
+      md5: 98fc52c2d4e7183170a5251d4faa8eaa
+      size: 38424
+    - path: src/claimlens/cli.py
+      hash: md5
+      md5: ec0522209ff0b98b67a4a86499bbcf12
+      size: 16605
+    - path: src/claimlens/data/records.py
+      hash: md5
+      md5: 5ad19a0aac91c23d4827ebaa8647da22
+      size: 1665
     - path: src/claimlens/review/decisions.py
       hash: md5
-      md5: 49e1fcc88a41549a44190aff9204383e
-      size: 3145
+      md5: 7eadb9485508f86264071b658d5d0227
+      size: 4657
     outs:
     - path: data/processed/fusion-eval-v1
       hash: md5

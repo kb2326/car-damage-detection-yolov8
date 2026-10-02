@@ -457,5 +457,6 @@
   "cardd-roboflow-v6:003992_jpg.rf.44974a7788553c7d1165abde9df10251#5": "rejected",
   "cardd-roboflow-v6:003992_jpg.rf.44974a7788553c7d1165abde9df10251#6": "rejected",
   "cardd-roboflow-v6:003992_jpg.rf.44974a7788553c7d1165abde9df10251#7": "rejected"
- }
+ },
+ "proposals_sha256": "eedd9fd726b9a797ff22564ebe9b3af928d7fe73a01d9f58b52fdec34dd8b0f5"
 }

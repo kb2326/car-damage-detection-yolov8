@@ -69,7 +69,8 @@ settings; they are not insurance claim photos.
    - `damage-v1`: 5 near-duplicate groups (10 images) inside CarDD (for example ids 001882 and 003840 are
      the same photo, re-exposed); **4 images moved** so no group spans two splits.
    - `parts-v1`: **29 images moved** across splits.
-   - No CarDD image is a near-duplicate of a golden-claims photo.
+   - At build time no CarDD image was a near-duplicate of a v0 golden photo. Golden v1 adds 50
+     photos taken directly from the frozen CarDD test split; protection never moves test images.
 4. **Split rule:** a whole cluster goes to test if any member is in the source test split, else
    it is excluded if it contains a golden photo, else validation, else train. The frozen test
    split is never altered.

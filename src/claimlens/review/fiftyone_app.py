@@ -38,20 +38,25 @@ def launch_parts_review(
     repo_root: Path,
     name: str,
     damage: Mapping[str, ImageRecord],
+    existing: Mapping[str, str] | None = None,
 ) -> None:
+    """Existing decisions are pre-loaded as tags, so a second pass continues the first."""
     fo = _fo()
+    existing = existing or {}
     dataset = fo.Dataset(name, overwrite=True, persistent=True)
     samples = []
     for record in records:
         sample = fo.Sample(
             filepath=str((repo_root / record.path).resolve()), image_id=record.image_id
         )
-        sample["parts"] = fo.Polylines(
-            polylines=[
-                _polyline(fo, a, key=annotation_key(record.image_id, i), confidence=a.score)
-                for i, a in enumerate(record.annotations)
-            ]
-        )
+        polylines = []
+        for i, annotation in enumerate(record.annotations):
+            key = annotation_key(record.image_id, i)
+            tags = [existing[key]] if key in existing else []
+            polylines.append(
+                _polyline(fo, annotation, key=key, confidence=annotation.score, tags=tags)
+            )
+        sample["parts"] = fo.Polylines(polylines=polylines)
         context = damage.get(record.image_id)
         if context is not None:
             sample["damage"] = fo.Polylines(
@@ -68,6 +73,8 @@ def export_parts_review(name: str, *, job_id: str, reviewer: str) -> PartReview:
     decisions: dict[str, str] = {}
     for sample in fo.load_dataset(name):
         for polyline in sample["parts"].polylines:
+            if "approved" in polyline.tags and "rejected" in polyline.tags:
+                raise ValueError(f"{polyline.key} is tagged both approved and rejected")
             if "approved" in polyline.tags:
                 decisions[polyline.key] = "approved"
             elif "rejected" in polyline.tags:

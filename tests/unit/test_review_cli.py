@@ -8,7 +8,7 @@ from claimlens.cli import main
 from claimlens.data.records import Annotation, ImageRecord, read_records, write_records
 from claimlens.domain import Route
 from claimlens.evals.golden import GoldenClaim, load_golden, write_golden
-from claimlens.review.decisions import GoldenReview, PartReview, write_review
+from claimlens.review.decisions import GoldenReview, PartReview, file_sha256, write_review
 
 ROOT = Path(__file__).resolve().parents[2]
 SQUARE = (0.1, 0.1, 0.5, 0.1, 0.5, 0.5)
@@ -29,13 +29,15 @@ def test_apply_parts_writes_the_eval_set(
             Annotation(label="hood", polygon=SQUARE, score=0.4),
         ),
     )
-    write_records(tmp_path / "data" / "interim" / "fusion-eval-v1" / "autolabels.jsonl", [record])
+    proposals = tmp_path / "data" / "interim" / "fusion-eval-v1" / "autolabels.jsonl"
+    write_records(proposals, [record])
     write_review(
         tmp_path / "reviews" / "fusion-eval-v1.json",
         PartReview(
             job_id="fusion-eval-v1",
             reviewer="me",
             decisions={"s:a#0": "approved", "s:a#1": "rejected"},
+            proposals_sha256=file_sha256(proposals),
         ),
     )
     monkeypatch.chdir(tmp_path)
@@ -49,6 +51,21 @@ def test_apply_parts_writes_the_eval_set(
     assert report["counts"] == {"approved": 1, "rejected": 1}
     assert report["images"] == 1
     assert "1 approved" in capsys.readouterr().out
+
+
+def test_apply_parts_refuses_changed_proposals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    proposals = tmp_path / "data" / "interim" / "fusion-eval-v1" / "autolabels.jsonl"
+    proposals.parent.mkdir(parents=True)
+    proposals.write_text("", encoding="utf-8")
+    write_review(
+        tmp_path / "reviews" / "fusion-eval-v1.json",
+        PartReview(job_id="fusion-eval-v1", reviewer="me", decisions={}, proposals_sha256="old"),
+    )
+    monkeypatch.chdir(tmp_path)
+    assert main(["review", "apply", "parts"]) == 1
+    assert "proposals changed" in capsys.readouterr().err
 
 
 def test_apply_golden_marks_reviewed_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

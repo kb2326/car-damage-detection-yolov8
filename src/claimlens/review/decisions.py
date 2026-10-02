@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
@@ -24,6 +25,33 @@ class PartReview(Frozen):
     job_id: str
     reviewer: str
     decisions: dict[str, PartDecision]
+    # SHA-256 of the autolabels.jsonl the decisions were made against; keys are positional.
+    proposals_sha256: str | None = None
+
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def check_part_review(review: PartReview, *, job_id: str, proposals_sha256: str) -> None:
+    """Refuse to apply decisions to a different job or to proposals that have changed."""
+    if review.job_id != job_id:
+        raise ValueError(f"review is for job {review.job_id!r}, not {job_id!r}")
+    if review.proposals_sha256 is None:
+        raise ValueError("review has no proposals_sha256; re-export it against the proposals")
+    if review.proposals_sha256 != proposals_sha256:
+        raise ValueError(
+            "proposals changed since the review was made (proposals_sha256 mismatch); "
+            "review the new proposals instead of reusing old decisions"
+        )
+
+
+def merge_part_reviews(old: PartReview, new: PartReview) -> PartReview:
+    """Later decisions win; earlier ones are kept, so a spot-check never erases a full review."""
+    reviewers = old.reviewer if new.reviewer == old.reviewer else f"{old.reviewer}; {new.reviewer}"
+    return new.model_copy(
+        update={"reviewer": reviewers, "decisions": {**old.decisions, **new.decisions}}
+    )
 
 
 class GoldenReview(Frozen):
@@ -74,8 +102,12 @@ def apply_golden_review(cases: Sequence[GoldenClaim], review: GoldenReview) -> l
                 raise ValueError(
                     f"{case.case_id}: decision {decision!r} is neither 'agree' nor a route"
                 ) from None
+            if route is case.expected_route:
+                updated.append(case.model_copy(update={"reviewed": True}))
+                continue
             old = case.expected_route.value
-            note = f"Reviewer changed expected route from {old} to {route.value}."
+            change = f"Reviewer changed expected route from {old} to {route.value}."
+            note = f"{case.notes} {change}".strip()
             updated.append(
                 case.model_copy(update={"reviewed": True, "expected_route": route, "notes": note})
             )

@@ -12,6 +12,9 @@ from claimlens.review.decisions import (
     annotation_key,
     apply_golden_review,
     apply_part_review,
+    check_part_review,
+    file_sha256,
+    merge_part_reviews,
     read_review,
     write_review,
 )
@@ -96,3 +99,55 @@ def test_reviews_round_trip(tmp_path: Path) -> None:
     review = _review(**{"a#0": "approved"})
     write_review(path, review)
     assert read_review(path, PartReview) == review
+
+
+def test_decisions_for_unknown_proposals_are_ignored() -> None:
+    review = _review(**{annotation_key("a", 0): "approved", "ghost#0": "approved"})
+    kept, counts = apply_part_review([_record("a", "door")], review)
+    assert len(kept) == 1
+    assert counts == {"approved": 1}
+
+
+def test_check_part_review_accepts_matching_job_and_proposals(tmp_path: Path) -> None:
+    proposals = tmp_path / "autolabels.jsonl"
+    proposals.write_text("x", encoding="utf-8")
+    review = _review(**{"a#0": "approved"}).model_copy(
+        update={"proposals_sha256": file_sha256(proposals)}
+    )
+    check_part_review(review, job_id="j", proposals_sha256=file_sha256(proposals))
+
+
+@pytest.mark.parametrize(
+    ("job_id", "stored", "message"),
+    [("other", "abc", "not 'other'"), ("j", None, "no proposals_sha256"), ("j", "old", "changed")],
+)
+def test_check_part_review_refuses_mismatches(
+    job_id: str, stored: str | None, message: str
+) -> None:
+    review = _review(**{"a#0": "approved"}).model_copy(update={"proposals_sha256": stored})
+    with pytest.raises(ValueError, match=message):
+        check_part_review(review, job_id=job_id, proposals_sha256="abc")
+
+
+def test_merge_keeps_earlier_decisions_and_lets_later_ones_win() -> None:
+    old = _review(**{"a#0": "approved", "a#1": "rejected"})
+    new = PartReview.model_validate(
+        {"job_id": "j", "reviewer": "human", "decisions": {"a#1": "approved"}}
+    )
+    merged = merge_part_reviews(old, new)
+    assert merged.decisions == {"a#0": "approved", "a#1": "approved"}
+    assert merged.reviewer == "me; human"
+
+
+def test_golden_review_with_the_same_route_adds_no_note() -> None:
+    review = GoldenReview(reviewer="me", decisions={"g1": "FAST_TRACK"})
+    (case,) = apply_golden_review([_case("g1")], review)
+    assert case.reviewed
+    assert case.notes == ""
+
+
+def test_golden_route_change_keeps_existing_notes() -> None:
+    original = _case("g1").model_copy(update={"notes": "Blurry photo."})
+    review = GoldenReview(reviewer="me", decisions={"g1": "ADJUSTER_REVIEW"})
+    (case,) = apply_golden_review([original], review)
+    assert case.notes.startswith("Blurry photo. Reviewer changed")

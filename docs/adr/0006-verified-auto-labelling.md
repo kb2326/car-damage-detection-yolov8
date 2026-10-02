@@ -23,7 +23,12 @@ its own.
   used only when every proposal on it was decided.
 - **Run on a free GPU:** the job runs as a private Kaggle kernel on a T4 (`training/kaggle/autolabel`).
   A laptop CPU took about 20 s per image and overheated; the GPU took about 1 minute for 100 images.
-  Results come back with `kaggle kernels output` and are recorded with `dvc commit`.
+  Results come back with `kaggle kernels output` and are recorded with `dvc commit`. The kernel
+  checks out a pinned commit (`fusion-eval-v1` was produced by `0396bfd`), and the DVC stage is
+  frozen so `dvc repro` never reruns it on a laptop.
+- **Tie decisions to proposals:** keys are positional (`image_id#index`), so a review stores the
+  SHA-256 of the proposals file and `review apply` refuses a mismatch. A later review pass is
+  pre-loaded with the existing decisions and merged on export, so a spot-check never erases them.
 
 ## Results (`fusion-eval-v1`, 100 frozen CarDD test images)
 

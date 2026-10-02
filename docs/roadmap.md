@@ -102,7 +102,7 @@ something that already works.*
 - [x] Grounding DINO + SAM 2 part masks on 100 test images, run on a Kaggle GPU (ADR 0006)
 - [x] `fusion-eval-v1`: 133 of 455 part masks approved, 77 images (AI-reviewed, not human-verified)
 - [ ] **You:** spot-check `fusion-eval-v1` in FiftyOne (`uv run claimlens review launch parts`
-  starts a fresh review)
+  opens with my decisions pre-tagged; swap the tag on any you disagree with, then `review export parts`)
 - [x] Golden claims v1: 97 cases, duplicates removed, 50 CarDD test cases added (30 fast-tracks)
 - [ ] **You:** review the golden claims (`uv run claimlens review launch golden`)
 - [x] Baseline v1: route accuracy 0.73, escalation recall 1.00, 4 of 30 correct fast-tracks
