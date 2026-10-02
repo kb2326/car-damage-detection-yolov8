@@ -23,7 +23,7 @@ from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
 from claimlens.evals.golden import load_golden, write_golden
 from claimlens.evals.metrics import compute_triage_metrics
-from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval
+from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval, what_if_thresholds
 from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
@@ -128,6 +128,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = sub.add_parser("eval-triage", help="score the pipeline on golden claims")
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
+    evaluate.add_argument(
+        "--what-if", default="", help="comma-separated confidence thresholds, e.g. 0.25,0.40,0.55"
+    )
 
     data = sub.add_parser("data", help="fetch and build datasets")
     data_sub = data.add_subparsers(dest="data_command", required=True)
@@ -276,15 +279,19 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     with tempfile.TemporaryDirectory() as workdir:
         results = run_triage_eval(cases, make, repo_root=Path.cwd(), workdir=Path(workdir))
     metrics = compute_triage_metrics([(r.expected, r.predicted) for r in results])
+    thresholds = [float(t) for t in args.what_if.split(",") if t.strip()]
+    decision_config = load_decision_config(args.config / "decision_policy.toml")
+    what_if = what_if_thresholds(results, decision_config, thresholds)
     meta = ReportMeta(
         golden_path=args.golden.as_posix(),
         model_version=detector.model_version,
         agent_version=StubTriageAgent.agent_version,
-        decision_policy_version=load_decision_config(args.config / "decision_policy.toml").version,
+        decision_policy_version=decision_config.version,
         generated_on=date.today(),
     )
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(render_report(cases, results, metrics, meta), encoding="utf-8")
+    report = render_report(cases, results, metrics, meta, what_if=what_if)
+    args.report.write_text(report, encoding="utf-8")
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     print(
         f"Cases: {metrics.total}  Route accuracy: {metrics.route_accuracy:.2f}  "
