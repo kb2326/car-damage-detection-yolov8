@@ -6,6 +6,7 @@ import tomllib
 from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 
@@ -22,6 +23,7 @@ class PolicyRecord(Frozen):
     status: PolicyStatus
     collision: bool
     deductible: int = Field(ge=0)
+    wording: Literal["basic", "standard", "premium"] = "standard"
 
 
 class PolicyRepository:
