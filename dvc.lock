@@ -97,3 +97,34 @@ stages:
       hash: md5
       md5: 05347b44da4e6346e069b4e785bbd864
       size: 90
+  autolabel-fusion-eval-v1:
+    cmd: uv run --group autolabel claimlens data autolabel fusion-eval-v1
+    deps:
+    - path: config/autolabel.toml
+      hash: md5
+      md5: 376d964926c3142c9ab7aa879b848581
+      size: 586
+    - path: config/taxonomy.toml
+      hash: md5
+      md5: 86d35d5df5715813edecfb585e9a8918
+      size: 1508
+    - path: data/interim/damage-v1
+      hash: md5
+      md5: 675d8551721d8dfe4feb99632cd86290.dir
+      size: 9741440
+      nfiles: 3
+    - path: src/claimlens/autolabel
+      hash: md5
+      md5: 02280be27a02054c4cd44922bed13b8f.dir
+      size: 10197
+      nfiles: 5
+    outs:
+    - path: data/interim/fusion-eval-v1
+      hash: md5
+      md5: 204d225099a72366259871c6effc1ea9.dir
+      size: 140164
+      nfiles: 1
+    - path: reports/data/fusion-eval-v1-autolabel.json
+      hash: md5
+      md5: 58bcd73bc6154fe23da67fa3271d4661
+      size: 365

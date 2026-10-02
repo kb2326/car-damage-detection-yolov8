@@ -1,0 +1,20 @@
+{
+ "dropped": {
+  "ambiguous_phrase": 162,
+  "duplicate": 54
+ },
+ "images": 100,
+ "images_with_proposals": 100,
+ "job": "fusion-eval-v1",
+ "model_version": "IDEA-Research/grounding-dino-tiny+facebook/sam2.1-hiera-tiny",
+ "proposals": {
+  "door": 106,
+  "front_bumper": 5,
+  "glass": 75,
+  "hood": 48,
+  "light": 89,
+  "mirror": 44,
+  "trunk": 4,
+  "wheel": 84
+ }
+}

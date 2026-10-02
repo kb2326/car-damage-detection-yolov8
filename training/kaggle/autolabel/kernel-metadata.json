@@ -1,0 +1,13 @@
+{
+  "id": "karthickbalaje/claimlens-autolabel-fusion-eval-v1",
+  "title": "claimlens-autolabel-fusion-eval-v1",
+  "code_file": "run_autolabel.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": ["karthickbalaje/claimlens-autolabel-bundle"],
+  "competition_sources": [],
+  "kernel_sources": []
+}
