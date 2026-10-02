@@ -111,3 +111,33 @@ def test_train_import_reports_the_version(
     assert "as 1" in capsys.readouterr().out
     assert (tmp_path / "models" / "damage" / "damage-yolo11n-v1" / "best.pt").is_file()
     assert (tmp_path / "reports" / "models" / "damage-yolo11n-v1.json").is_file()
+
+
+def test_train_select_writes_models_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("mlflow")
+    import shutil
+
+    from tests.training_helpers import make_run_dir
+
+    config = tmp_path / "config"
+    shutil.copytree(CONFIG_DIR, config)
+    (config / "models.toml").unlink(missing_ok=True)
+    run_dir = make_run_dir(tmp_path, name="damage-yolo11n-v1")
+    monkeypatch.chdir(tmp_path)
+    base = ["--config", str(config), "train"]
+    assert main([*base, "import", "damage-yolo11n-v1", "--from", str(run_dir)]) == 0
+    assert main([*base, "select"]) == 0
+    assert 'run = "damage-yolo11n-v1"' in (config / "models.toml").read_text(encoding="utf-8")
+    out = tmp_path / "report.md"
+    assert main([*base, "report", "--out", str(out)]) == 0
+    assert "Champion: `damage-yolo11n-v1`" in out.read_text(encoding="utf-8")
+
+
+def test_train_report_without_a_champion_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    code = main(["--config", str(tmp_path / "config"), "train", "report", "--out", "r.md"])
+    assert code == 1
+    assert "train select" in capsys.readouterr().err

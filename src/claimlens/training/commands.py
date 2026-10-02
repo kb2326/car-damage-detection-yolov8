@@ -38,6 +38,9 @@ def add_train_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
         "--from", dest="source", type=Path, required=True, help="downloaded run folder"
     )
     imp.add_argument("--allow-incomplete", action="store_true")
+    train_sub.add_parser("select", help="choose the champion on validation mask mAP50")
+    report = train_sub.add_parser("report", help="write the damage model report")
+    report.add_argument("--out", type=Path, required=True)
 
 
 def _git_commit() -> str:
@@ -95,6 +98,39 @@ def _import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _select(args: argparse.Namespace) -> int:
+    from claimlens.training.select import load_model_reports, select_champion, write_models_config
+    from claimlens.training.tracking import default_tracking, set_champion_alias
+
+    repo_root = Path.cwd()
+    champion = select_champion(load_model_reports(repo_root / "reports" / "models"))
+    write_models_config(args.config / "models.toml", champion)
+    tracking_uri, _ = default_tracking(repo_root)
+    set_champion_alias(tracking_uri, champion.model_version)
+    print(f"Champion: {champion.run} (val mask mAP50 {champion.val.mask_map50:.3f})")
+    return 0
+
+
+def _report(args: argparse.Namespace) -> int:
+    from datetime import date
+
+    from claimlens.training.select import (
+        load_model_reports,
+        load_models_config,
+        render_model_report,
+    )
+
+    reports = load_model_reports(Path.cwd() / "reports" / "models")
+    models = load_models_config(args.config / "models.toml")
+    if models is None:
+        raise ValueError("no champion yet: run `claimlens train select` first")
+    champion = next(r for r in reports if r.run == models.damage.run)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(render_model_report(reports, champion, date.today()), encoding="utf-8")
+    print(f"Report written to {args.out}")
+    return 0
+
+
 def run_train_command(
     args: argparse.Namespace,
     *,
@@ -106,6 +142,10 @@ def run_train_command(
             return _run(args, trainer_factory)
         if args.train_command == "import":
             return _import(args)
+        if args.train_command == "select":
+            return _select(args)
+        if args.train_command == "report":
+            return _report(args)
         raise ValueError(f"unknown train command {args.train_command!r}")
     except Exception as exc:
         from claimlens.training.tracking import TrainingUnavailableError
