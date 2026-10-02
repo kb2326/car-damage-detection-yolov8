@@ -120,5 +120,6 @@ def test_low_fraud_score_does_not_trigger_fraud_review() -> None:
 
 def test_repo_config_loads() -> None:
     config = load_decision_config(ROOT / "config" / "decision_policy.toml")
-    assert config.version == "decision-policy-v0"
+    assert config.version == "decision-policy-v1"
+    assert config.min_finding_confidence == 0.65  # owner-approved R6 threshold (ADR 0009)
     assert config.max_fast_track_cost_usd == 3000

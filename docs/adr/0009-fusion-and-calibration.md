@@ -50,3 +50,11 @@
   on close-ups.
 - **Next for the owner:** the recommended 0.65 would cost 2 golden fast-tracks (9 instead of 11)
   for more trustworthy findings. That decision stays open.
+
+## Update (2026-10-02): threshold adopted
+
+The owner approved the recommended threshold. `config/decision_policy.toml` is now
+`decision-policy-v1` with `min_finding_confidence = 0.65`. Golden v1 with the fused detector:
+route accuracy 0.78, escalation recall 1.00, 9 of 30 correct fast-tracks
+(`evals/reports/2026-10-02-triage-baseline-v1-fused-r6-065.md`). This trades two fast-tracks for
+findings that are correct at least 80% of the time on validation.
