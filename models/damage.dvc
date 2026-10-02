@@ -1,0 +1,6 @@
+outs:
+- md5: 3e6ed105153fc3210d955b772518dc9c.dir
+  size: 26504968
+  nfiles: 2
+  hash: md5
+  path: damage
