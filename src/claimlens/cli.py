@@ -41,6 +41,8 @@ from claimlens.review.decisions import (
     read_review,
     write_review,
 )
+from claimlens.training.commands import TrainerFactory, add_train_parser, run_train_command
+from claimlens.training.run import Trainer
 from claimlens.vision.base import Detector
 from claimlens.workflow import PipelineDeps, process_claim
 
@@ -53,6 +55,12 @@ def _legacy_detector(weights: Path) -> Detector:
     from claimlens.vision.legacy_yolo import LegacyYoloDetector
 
     return LegacyYoloDetector(weights)
+
+
+def _ultralytics_trainer() -> Trainer:
+    from claimlens.training.ultralytics_trainer import UltralyticsTrainer
+
+    return UltralyticsTrainer()
 
 
 def _grounded_sam(job: AutolabelJob) -> PartLabeller:
@@ -110,6 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--job", default="fusion-eval-v1", help="auto-label job id")
     review.add_argument("--golden", type=Path, default=Path("evals/golden/v1/claims.jsonl"))
     review.add_argument("--reviewer", default="reviewer")
+    add_train_parser(sub)
     return parser
 
 
@@ -156,6 +165,7 @@ def main(
     *,
     detector_factory: DetectorFactory = _legacy_detector,
     labeller_factory: LabellerFactory = _grounded_sam,
+    trainer_factory: TrainerFactory = _ultralytics_trainer,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "eval-triage":
@@ -164,6 +174,12 @@ def main(
         return _data(args, labeller_factory)
     if args.command == "review":
         return _review(args)
+    if args.command == "train":
+        return run_train_command(
+            args,
+            trainer_factory=trainer_factory,
+            detector_factory=lambda kind, weights: detector_factory(weights),
+        )
     store = SQLiteEventStore(args.db)
     try:
         if args.command == "run":

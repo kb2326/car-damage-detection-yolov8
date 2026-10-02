@@ -79,6 +79,7 @@ omit = [
   "*/claimlens/vision/legacy_yolo.py",
   "*/claimlens/autolabel/grounded_sam.py",
   "*/claimlens/review/fiftyone_app.py",
+  "*/claimlens/training/ultralytics_trainer.py",
 ]
 
 # ---------- Pytest ----------
