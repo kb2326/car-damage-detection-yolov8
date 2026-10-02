@@ -1,0 +1,20 @@
+# LLM gateway (spec docs/specs/2026-10-02-m4b-llm-knowledge-design.md). Prices: USD per million tokens.
+
+[tiers]
+strong = "claude-sonnet-5-5"
+fast = "claude-haiku-4-5"
+
+[fallback]
+# Tried in order after the tier's model fails with transient errors (Claude-only, owner's call).
+models = ["claude-haiku-4-5"]
+
+[prices]
+"claude-sonnet-5-5" = { input = 2.0, output = 10.0 }
+"claude-haiku-4-5" = { input = 1.0, output = 5.0 }
+
+[limits]
+per_claim_usd = 0.03
+per_day_usd = 1.00
+max_tokens = 1024
+attempts_per_model = 3
+backoff_seconds = 1.0

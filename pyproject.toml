@@ -6,6 +6,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "anthropic>=1.11,<2",
   "imagehash>=4.3",
   "mcp>=2.2,<3",
   "numpy>=2.0",
@@ -42,6 +43,10 @@ autolabel = [
 review = [
   "fiftyone>=1.0",
 ]
+knowledge = [
+  "fastembed>=0.8,<0.9",
+  "lancedb>=0.39,<0.40",
+]
 training = [
   "mlflow>=3.0",
 ]
@@ -71,7 +76,7 @@ files = ["src", "tests", "scripts"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["ultralytics", "ultralytics.*", "imagehash", "imagehash.*", "mlflow", "mlflow.*"]
+module = ["ultralytics", "ultralytics.*", "imagehash", "imagehash.*", "mlflow", "mlflow.*", "lancedb", "lancedb.*", "fastembed", "fastembed.*", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
@@ -88,6 +93,8 @@ omit = [
   "*/claimlens/training/ultralytics_trainer.py",
   "*/claimlens/vision/yolo_seg.py",
   "*/claimlens/vision/ultralytics_segmenter.py",
+  "*/claimlens/llm/anthropic_provider.py",
+  "*/claimlens/knowledge/fastembedder.py",
 ]
 
 # ---------- Pytest ----------
