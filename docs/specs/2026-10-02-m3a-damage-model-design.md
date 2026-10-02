@@ -133,7 +133,7 @@ Implements `Detector`. For each predicted instance it builds a `DamageFinding` w
 - `claimlens train benchmark <run>`
 - `run`, `resume` and `eval-triage` gain `--detector legacy|yolo-seg` (default `legacy` until
   `select` has run, then the champion in `config/models.toml`). `eval-triage` gains
-  `--min-confidence` for the what-if table only.
+  `--what-if 0.25,0.40,0.55` (thresholds for the what-if table only).
 
 ### 5.6 Data and DVC
 

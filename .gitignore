@@ -34,6 +34,7 @@ Thumbs.db
 !/data/**/.gitignore
 /models/*
 !/models/README.md
+!/models/*.dvc
 *.pt
 *.onnx
 *.engine
