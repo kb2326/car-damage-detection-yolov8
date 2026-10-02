@@ -8,7 +8,7 @@ from pathlib import Path
 
 from claimlens.data.taxonomy import PartGroups
 from claimlens.domain import BoundingBox, DamageFinding, Frozen
-from claimlens.vision.base import normalize_class_name, polygon_area_fraction
+from claimlens.vision.base import normalize_class_name
 from claimlens.vision.instances import SegInstance, Segmenter
 from claimlens.vision.masks import area, intersection, rasterize
 
@@ -91,7 +91,12 @@ class FusedDetector:
         for item in fuse(
             damage.instances, parts.instances, self._groups, min_overlap=self._min_overlap
         ):
-            x1, y1, x2, y2 = item.damage.box_xyxy
+            x1, y1, x2, y2 = (
+                min(max(item.damage.box_xyxy[0], 0.0), width),
+                min(max(item.damage.box_xyxy[1], 0.0), height),
+                min(max(item.damage.box_xyxy[2], 0.0), width),
+                min(max(item.damage.box_xyxy[3], 0.0), height),
+            )
             confidence = item.damage.confidence
             if self._temperature is not None:
                 confidence = calibrate_confidence(confidence, self._temperature)
@@ -100,13 +105,11 @@ class FusedDetector:
                     photo_id=photo_id,
                     damage_type=normalize_class_name(item.damage.label),
                     confidence=confidence,
-                    bbox=BoundingBox(
-                        x1=min(max(x1, 0.0), width),
-                        y1=min(max(y1, 0.0), height),
-                        x2=min(max(x2, 0.0), width),
-                        y2=min(max(y2, 0.0), height),
+                    bbox=BoundingBox(x1=x1, y1=y1, x2=x2, y2=y2),
+                    # Box area, as the rate card defines (M3a gate); the mask is used for parts.
+                    image_area_fraction=min(
+                        max(x2 - x1, 0.0) * max(y2 - y1, 0.0) / (width * height), 1.0
                     ),
-                    image_area_fraction=polygon_area_fraction(item.damage.polygon_xyn),
                     part=item.part_group,
                     part_area_ratio=item.part_area_ratio,
                 )

@@ -88,7 +88,8 @@ def test_fused_detector_returns_findings_with_parts() -> None:
     assert finding.part == "rear_bumper"
     assert finding.part_area_ratio == pytest.approx(0.04, abs=0.01)
     assert finding.confidence == pytest.approx(calibrate_confidence(0.8, 2.0))
-    assert finding.image_area_fraction == pytest.approx(0.01)
+    # Fallback size is the box (10 x 10 px on 200 x 100), as the rate card defines, not the mask.
+    assert finding.image_area_fraction == pytest.approx(100 / 20000)
     assert detector.model_version == "fused:d+p+T2.00"
 
 
