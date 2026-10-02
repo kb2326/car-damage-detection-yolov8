@@ -45,6 +45,18 @@ def select_champion(reports: Sequence[ModelReport]) -> ModelReport:
     return max(complete, key=lambda r: (r.val.mask_map50, r.val.mask_map50_95, r.run))
 
 
+def keep_calibration(new: ChampionModel, current: ChampionModel | None) -> ChampionModel:
+    """Re-selecting the same run keeps its calibration; a different run starts uncalibrated."""
+    if current is None or current.run != new.run:
+        return new
+    return new.model_copy(
+        update={
+            "temperature": current.temperature,
+            "recommended_threshold": current.recommended_threshold,
+        }
+    )
+
+
 def _section(task: str, champion: ChampionModel) -> list[str]:
     lines = [
         f"[{task}]",

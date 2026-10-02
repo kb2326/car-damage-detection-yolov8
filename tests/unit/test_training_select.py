@@ -113,3 +113,20 @@ def test_reports_can_be_filtered_by_task(tmp_path: Path) -> None:
     write_json(tmp_path / "p.json", _report("p", 0.6, 0.5).model_copy(update={"task": "parts"}))
     assert [r.run for r in load_model_reports(tmp_path, task="parts")] == ["p"]
     assert [r.run for r in load_model_reports(tmp_path, task="damage")] == ["d"]
+
+
+def test_reselecting_the_same_champion_keeps_its_calibration(tmp_path: Path) -> None:
+    from claimlens.training.select import keep_calibration
+
+    path = tmp_path / "models.toml"
+    calibrated = champion_from_report(_report("d", 0.6, 0.5)).model_copy(
+        update={"temperature": 0.8, "recommended_threshold": 0.65}
+    )
+    update_models_config(path, "damage", calibrated)
+    current = load_models_config(path)
+    assert current is not None
+    same = keep_calibration(champion_from_report(_report("d", 0.6, 0.5)), current.damage)
+    assert same.temperature == 0.8
+    assert same.recommended_threshold == 0.65
+    other = keep_calibration(champion_from_report(_report("e", 0.7, 0.5)), current.damage)
+    assert other.temperature is None

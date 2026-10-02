@@ -139,3 +139,12 @@ def test_weights_without_a_detector_flag_keep_the_legacy_meaning(tmp_path: Path)
     assert resolve_detector(None, tmp_path / "old.pt", tmp_path) == DetectorSpec(
         kind="legacy", weights=tmp_path / "old.pt"
     )
+
+
+def test_explicit_weights_are_not_given_the_champions_temperature(tmp_path: Path) -> None:
+    (tmp_path / "models.toml").write_text(BOTH, encoding="utf-8")
+    spec = resolve_detector("fused", tmp_path / "other.pt", tmp_path)
+    assert spec.weights == tmp_path / "other.pt"
+    assert spec.temperature is None
+    champion = resolve_detector("fused", Path("models/damage/s/best.pt"), tmp_path)
+    assert champion.temperature == 1.4

@@ -113,7 +113,7 @@ part bands; otherwise it uses the image fraction. `config/rate_card.toml` become
 - `recommend_threshold(pairs, T, precision=0.80) -> float | None`.
 - `claimlens train calibrate <run>` segments the validation images on the CPU (814 photos, a few
   minutes for the n model), reads the ground-truth polygons from the YOLO label files, and writes
-  the temperature and threshold to `config/models.toml` and `reports/models/<run>-calibration.json`.
+  the temperature and threshold to `config/models.toml` and `reports/models/calibration/<run>.json`.
 
 ### 5.6 ONNX (`claimlens train export <run>`)
 
@@ -140,7 +140,7 @@ calibration. `legacy` and `yolo-seg` remain available.
 
 - `evals/reports/<date>-parts-model-v1.md`: test metrics per class, plus the `fusion-eval-v1`
   agreement per part group.
-- `reports/models/<run>-calibration.json` and a calibration section in the damage model report:
+- `reports/models/calibration/<run>.json` and a calibration section in the damage model report:
   T, ECE before and after, the recommended threshold, and precision and recall at it.
 - `evals/reports/<date>-triage-baseline-v1-fused.md`: golden v1 with the fused detector, compared
   with legacy and M3a, and a what-if table including the recommended threshold.

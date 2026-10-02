@@ -118,7 +118,9 @@ def _import(args: argparse.Namespace) -> int:
 def _select(args: argparse.Namespace) -> int:
     from claimlens.training.select import (
         champion_from_report,
+        keep_calibration,
         load_model_reports,
+        load_models_config,
         select_champion,
         update_models_config,
     )
@@ -128,7 +130,11 @@ def _select(args: argparse.Namespace) -> int:
     champion = select_champion(load_model_reports(repo_root / "reports" / "models", args.task))
     tracking_uri, _ = default_tracking(repo_root)
     set_champion_alias(tracking_uri, champion.model_version, args.task)
-    update_models_config(args.config / "models.toml", args.task, champion_from_report(champion))
+    current = load_models_config(args.config / "models.toml")
+    chosen = keep_calibration(
+        champion_from_report(champion), getattr(current, args.task) if current else None
+    )
+    update_models_config(args.config / "models.toml", args.task, chosen)
     print(f"Champion: {champion.run} (val mask mAP50 {champion.val.mask_map50:.3f})")
     return 0
 

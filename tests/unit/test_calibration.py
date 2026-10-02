@@ -85,3 +85,8 @@ def test_part_agreement_counts_per_group() -> None:
 
 def test_images_without_predictions_count_as_misses() -> None:
     assert part_agreement({"img": [("door", SQUARE)]}, {}, GROUPS) == {"door": (0, 1)}
+
+
+def test_fit_refuses_when_nothing_matched() -> None:
+    with pytest.raises(ValueError, match="no matched predictions"):
+        fit_temperature([(0.3, False), (0.6, False), (0.9, False)])

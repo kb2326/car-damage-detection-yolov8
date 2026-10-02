@@ -118,7 +118,11 @@ def resolve_detector(detector: str | None, weights: Path | None, config_dir: Pat
         kind="fused",
         weights=damage_weights,
         parts_weights=Path(parts.weights),
-        temperature=damage.temperature if damage is not None else None,
+        temperature=(
+            damage.temperature
+            if damage is not None and damage_weights == Path(damage.weights)
+            else None
+        ),
         taxonomy=config_dir / "taxonomy.toml",
     )
 

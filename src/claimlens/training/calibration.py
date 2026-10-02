@@ -71,8 +71,10 @@ def _nll(pairs: Sequence[Pair], temperature: float) -> float:
 
 
 def fit_temperature(pairs: Sequence[Pair]) -> float:
-    if not pairs:
-        raise ValueError("no matched predictions to calibrate; check the split and label folders")
+    if not any(correct for _, correct in pairs):
+        raise ValueError(
+            "no matched predictions to calibrate; check the split, label folders and class names"
+        )
     return min(_GRID, key=lambda t: (_nll(pairs, t), abs(t - 1.0)))
 
 

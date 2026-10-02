@@ -1,7 +1,9 @@
 # Model card: ClaimLens damage and part models (v1)
 
-Following *Model Cards for Model Reporting* (Mitchell et al., 2019). Every number comes from
-`evals/reports/2026-10-02-*.md` and `reports/models/*.json`.
+Following *Model Cards for Model Reporting* (Mitchell et al., 2019). Numbers come from
+`evals/reports/2026-10-02-*.md` and `reports/models/**.json`. The fusion coverage figures (88%,
+112 severity changes) come from a one-off run of the fused detector over the golden photos,
+recorded in the M3b progress log.
 
 ## Model details
 
