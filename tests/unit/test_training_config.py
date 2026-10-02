@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_repo_training_config_loads_both_runs() -> None:
     runs = load_training_runs(ROOT / "config" / "training.toml")
-    assert set(runs) == {"damage-yolo11n-v1", "damage-yolo11s-v1"}
+    assert {"damage-yolo11n-v1", "damage-yolo11s-v1"} <= set(runs)
     small = runs["damage-yolo11s-v1"]
     assert small.model == "yolo11s-seg.pt"
     assert small.dataset == "damage-v1"
@@ -114,3 +114,11 @@ def test_metric_values_must_be_fractions() -> None:
             per_class_mask_map50={},
         )
     assert _metrics().mask_map50 == 0.55
+
+
+def test_parts_run_is_a_parts_task() -> None:
+    runs = load_training_runs(ROOT / "config" / "training.toml")
+    parts = runs["parts-yolo11n-v1"]
+    assert parts.task == "parts"
+    assert parts.dataset == "parts-v1"
+    assert runs["damage-yolo11n-v1"].task == "damage"

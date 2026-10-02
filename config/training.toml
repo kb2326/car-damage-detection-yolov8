@@ -15,3 +15,8 @@ model = "yolo11n-seg.pt"
 
 [runs.damage-yolo11s-v1]
 model = "yolo11s-seg.pt"
+
+[runs.parts-yolo11n-v1]
+task = "parts"
+model = "yolo11n-seg.pt"
+dataset = "parts-v1"
