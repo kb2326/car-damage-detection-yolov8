@@ -2,11 +2,13 @@ from pathlib import Path
 
 import pytest
 
+from claimlens.data.taxonomy import load_part_groups
 from claimlens.fusion import calibrate_confidence
 from claimlens.training.calibration import (
     ece,
     fit_temperature,
     match_predictions,
+    part_agreement,
     read_yolo_labels,
     recommend_threshold,
 )
@@ -70,3 +72,16 @@ def test_threshold_is_the_lowest_meeting_the_precision() -> None:
     pairs = [(0.3, False)] * 5 + [(0.5, True)] * 8 + [(0.5, False)] * 2 + [(0.9, True)] * 10
     assert recommend_threshold(pairs, 1.0, precision=0.80) == pytest.approx(0.35)
     assert recommend_threshold([(0.9, False)], 1.0) is None
+
+
+GROUPS = load_part_groups(Path(__file__).resolve().parents[2] / "config" / "taxonomy.toml")
+
+
+def test_part_agreement_counts_per_group() -> None:
+    truths = {"img": [("door", SQUARE), ("wheel", OTHER)]}
+    preds = {"img": [_pred("front_left_door", SQUARE, 0.9), _pred("hood", OTHER, 0.9)]}
+    assert part_agreement(truths, preds, GROUPS) == {"door": (1, 1), "wheel": (0, 1)}
+
+
+def test_images_without_predictions_count_as_misses() -> None:
+    assert part_agreement({"img": [("door", SQUARE)]}, {}, GROUPS) == {"door": (0, 1)}

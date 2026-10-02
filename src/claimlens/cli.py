@@ -9,6 +9,7 @@ import tempfile
 from collections.abc import Callable, Sequence
 from datetime import date
 from pathlib import Path
+from typing import Literal
 from uuid import UUID
 
 from claimlens.agent.stub import StubTriageAgent
@@ -21,6 +22,7 @@ from claimlens.data.pipeline import DataContractError, build_dataset
 from claimlens.data.records import read_records, write_records
 from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
+from claimlens.domain import Frozen
 from claimlens.evals.golden import load_golden, write_golden
 from claimlens.evals.metrics import compute_triage_metrics
 from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval, what_if_thresholds
@@ -55,39 +57,72 @@ from claimlens.vision.instances import Segmenter
 from claimlens.workflow import PipelineDeps, process_claim
 
 DEFAULT_WEIGHTS = Path("models/legacy/yolov8n-cardamage-v6.pt")
-DetectorFactory = Callable[[str, Path], Detector]
+DetectorFactory = Callable[["DetectorSpec"], Detector]
 LabellerFactory = Callable[[AutolabelJob], PartLabeller]
 
 
-def _default_detector(kind: str, weights: Path) -> Detector:
-    if kind == "yolo-seg":
+class DetectorSpec(Frozen):
+    """Which detector to build: legacy, our damage model, or damage + parts fused."""
+
+    kind: Literal["legacy", "yolo-seg", "fused"]
+    weights: Path
+    parts_weights: Path | None = None
+    temperature: float | None = None
+    taxonomy: Path | None = None
+
+
+def _default_detector(spec: DetectorSpec) -> Detector:
+    if spec.kind == "fused":
+        from claimlens.fusion import FusedDetector
+        from claimlens.vision.ultralytics_segmenter import UltralyticsSegmenter
+
+        if spec.parts_weights is None or spec.taxonomy is None:
+            raise ValueError("a fused detector needs parts weights and a taxonomy")
+        return FusedDetector(
+            UltralyticsSegmenter(spec.weights, name=spec.weights.parent.name),
+            UltralyticsSegmenter(spec.parts_weights, name=spec.parts_weights.parent.name),
+            load_part_groups(spec.taxonomy),
+            temperature=spec.temperature,
+        )
+    if spec.kind == "yolo-seg":
         from claimlens.vision.yolo_seg import YoloSegDetector
 
-        return YoloSegDetector(weights, run=weights.parent.name)
+        return YoloSegDetector(spec.weights, run=spec.weights.parent.name)
     from claimlens.vision.legacy_yolo import LegacyYoloDetector
 
-    return LegacyYoloDetector(weights)
+    return LegacyYoloDetector(spec.weights)
 
 
-def resolve_detector(
-    detector: str | None, weights: Path | None, config_dir: Path
-) -> tuple[str, Path]:
-    """Explicit flags win; otherwise the champion in config/models.toml; otherwise legacy."""
+def resolve_detector(detector: str | None, weights: Path | None, config_dir: Path) -> DetectorSpec:
+    """Explicit flags win; otherwise fused (both champions), the damage champion, or legacy."""
     models = load_models_config(config_dir / "models.toml")
     damage = models.damage if models is not None else None
-    kind = detector or ("yolo-seg" if damage is not None else "legacy")
-    if weights is not None:
-        return kind, weights
+    parts = models.parts if models is not None else None
+    default = "fused" if damage and parts else "yolo-seg" if damage else "legacy"
+    kind = detector or default
     if kind == "legacy":
-        return kind, DEFAULT_WEIGHTS
-    if damage is None:
+        return DetectorSpec(kind="legacy", weights=weights or DEFAULT_WEIGHTS)
+    if weights is not None:
+        damage_weights = weights
+    elif damage is not None:
+        damage_weights = Path(damage.weights)
+    else:
         raise ValueError("no champion model: run `claimlens train select` or pass --weights")
-    return kind, Path(damage.weights)
+    if kind == "yolo-seg":
+        return DetectorSpec(kind="yolo-seg", weights=damage_weights)
+    if parts is None:
+        raise ValueError("fused needs a parts champion: run `claimlens train select --task parts`")
+    return DetectorSpec(
+        kind="fused",
+        weights=damage_weights,
+        parts_weights=Path(parts.weights),
+        temperature=damage.temperature if damage is not None else None,
+        taxonomy=config_dir / "taxonomy.toml",
+    )
 
 
 def _make_detector(args: argparse.Namespace, factory: DetectorFactory) -> Detector:
-    kind, weights = resolve_detector(args.detector, args.weights, args.config)
-    return factory(kind, weights)
+    return factory(resolve_detector(args.detector, args.weights, args.config))
 
 
 def _ultralytics_segmenter(weights: Path, name: str) -> Segmenter:
@@ -128,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--blobs", type=Path, default=Path("var/blobs"))
     parser.add_argument("--config", type=Path, default=Path("config"))
     parser.add_argument("--weights", type=Path, default=None)
-    parser.add_argument("--detector", choices=["legacy", "yolo-seg"], default=None)
+    parser.add_argument("--detector", choices=["legacy", "yolo-seg", "fused"], default=None)
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="submit a claim and process it")
@@ -229,7 +264,6 @@ def main(
         return run_train_command(
             args,
             trainer_factory=trainer_factory,
-            detector_factory=detector_factory,
             segmenter_factory=segmenter_factory,
             exporter=exporter,
         )

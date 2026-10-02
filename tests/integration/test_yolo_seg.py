@@ -12,7 +12,7 @@ SAMPLE = ROOT / "tests" / "fixtures" / "images" / "dent_1.jpg"
 
 def _champion() -> Path | None:
     try:
-        _, weights = resolve_detector("yolo-seg", None, ROOT / "config")
+        weights = resolve_detector("yolo-seg", None, ROOT / "config").weights
     except ValueError:
         return None
     path = ROOT / weights

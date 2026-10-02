@@ -6,6 +6,7 @@ import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from claimlens.data.taxonomy import PartGroups
 from claimlens.domain import Frozen
 from claimlens.fusion import calibrate_confidence
 from claimlens.vision.instances import SegInstance
@@ -102,3 +103,25 @@ def recommend_threshold(
         if kept and sum(kept) / len(kept) >= precision:
             return threshold
     return None
+
+
+def part_agreement(
+    truths: Mapping[str, Sequence[Truth]],
+    preds: Mapping[str, Sequence[SegInstance]],
+    groups: PartGroups,
+    *,
+    iou: float = 0.5,
+) -> dict[str, tuple[int, int]]:
+    """Per part group: reviewed parts the part model also finds (same group, mask IoU >= iou)."""
+    agreed: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for image_id, image_truths in truths.items():
+        predicted = [
+            (groups.group_of(p.label), rasterize(p.polygon_xyn)) for p in preds.get(image_id, ())
+        ]
+        for group, polygon in image_truths:
+            total[group] = total.get(group, 0) + 1
+            mask = rasterize(polygon)
+            if any(g == group and mask_iou(mask, m) >= iou for g, m in predicted):
+                agreed[group] = agreed.get(group, 0) + 1
+    return {group: (agreed.get(group, 0), count) for group, count in sorted(total.items())}

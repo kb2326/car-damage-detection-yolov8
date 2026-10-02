@@ -265,3 +265,41 @@ def test_train_export_and_onnx_benchmark(tmp_path: Path, monkeypatch: pytest.Mon
     report = read_json(tmp_path / "reports" / "models" / "p1.json", ModelReport)
     assert report.cpu_ms_per_image_onnx is not None
     assert report.cpu_ms_per_image == 120.0  # the .pt timing is left unchanged
+
+
+class _PartsSegmenter:
+    model_version = "fake-parts"
+
+    def segment(self, image_path: Path) -> Segmentation:
+        door = SegInstance(
+            label="front_left_door", confidence=0.9, box_xyxy=(0, 0, 1, 1), polygon_xyn=SQUARE
+        )
+        return Segmentation(instances=(door,), width=10, height=10)
+
+
+def test_train_fusion_eval_reports_agreement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from claimlens.data.records import Annotation, ImageRecord, write_records
+
+    record = ImageRecord(
+        image_id="s:a",
+        source="s",
+        source_split="test",
+        path="a.jpg",
+        width=10,
+        height=10,
+        annotations=(Annotation(label="door", polygon=SQUARE),),
+    )
+    write_records(tmp_path / "data" / "processed" / "fusion-eval-v1" / "parts.jsonl", [record])
+    monkeypatch.chdir(tmp_path)
+    code = main(
+        ["--config", str(CONFIG_DIR), "train", "fusion-eval", "p1"],
+        segmenter_factory=lambda w, n: _PartsSegmenter(),
+    )
+    assert code == 0
+    data = json.loads(
+        (tmp_path / "reports" / "models" / "fusion-eval" / "p1.json").read_text(encoding="utf-8")
+    )
+    assert data == {"door": {"agreed": 1, "total": 1}}
+    assert "1 of 1" in capsys.readouterr().out

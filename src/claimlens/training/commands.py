@@ -13,11 +13,9 @@ from claimlens.domain import Frozen
 from claimlens.training.config import dvc_out_md5, load_training_runs
 from claimlens.training.manifest import read_json
 from claimlens.training.run import Trainer, run_training
-from claimlens.vision.base import Detector
 from claimlens.vision.instances import Segmenter
 
 TrainerFactory = Callable[[], Trainer]
-DetectorFactory = Callable[[str, Path], Detector]
 SegmenterFactory = Callable[[Path, str], Segmenter]
 ExporterFactory = Callable[[Path], Path]
 
@@ -50,6 +48,8 @@ def add_train_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     cal = train_sub.add_parser("calibrate", help="fit a temperature on validation predictions")
     cal.add_argument("run")
     cal.add_argument("--limit", type=int, default=0, help="use only the first N images (0 = all)")
+    fusion = train_sub.add_parser("fusion-eval", help="part agreement on fusion-eval-v1")
+    fusion.add_argument("run", help="a parts run")
     bench = train_sub.add_parser("benchmark", help="median CPU ms per image on test photos")
     bench.add_argument("run")
     bench.add_argument("--images", type=int, default=20)
@@ -252,11 +252,38 @@ def _calibrate(args: argparse.Namespace, segmenter_factory: SegmenterFactory) ->
     return 0
 
 
+def _fusion_eval(args: argparse.Namespace, segmenter_factory: SegmenterFactory) -> int:
+    import json
+
+    from claimlens.data.records import read_records
+    from claimlens.data.taxonomy import load_part_groups
+    from claimlens.training.calibration import Truth, part_agreement
+    from claimlens.vision.instances import SegInstance
+
+    repo_root = Path.cwd()
+    records = read_records(repo_root / "data" / "processed" / "fusion-eval-v1" / "parts.jsonl")
+    segmenter = segmenter_factory(repo_root / "models" / "parts" / args.run / "best.pt", args.run)
+    truths: dict[str, list[Truth]] = {
+        r.image_id: [(a.label, tuple(a.polygon)) for a in r.annotations] for r in records
+    }
+    preds: dict[str, list[SegInstance]] = {
+        r.image_id: list(segmenter.segment(repo_root / r.path).instances) for r in records
+    }
+    agreement = part_agreement(truths, preds, load_part_groups(args.config / "taxonomy.toml"))
+    out = repo_root / "reports" / "models" / "fusion-eval" / f"{args.run}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    payload = {g: {"agreed": a, "total": t} for g, (a, t) in agreement.items()}
+    out.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8", newline="\n")
+    agreed = sum(a for a, _ in agreement.values())
+    total = sum(t for _, t in agreement.values())
+    print(f"{args.run}: {agreed} of {total} reviewed parts found ({agreed / max(total, 1):.0%})")
+    return 0
+
+
 def run_train_command(
     args: argparse.Namespace,
     *,
     trainer_factory: TrainerFactory,
-    detector_factory: DetectorFactory,
     segmenter_factory: SegmenterFactory,
     exporter: ExporterFactory,
 ) -> int:
@@ -269,6 +296,8 @@ def run_train_command(
             return _select(args)
         if args.train_command == "report":
             return _report(args)
+        if args.train_command == "fusion-eval":
+            return _fusion_eval(args, segmenter_factory)
         if args.train_command == "calibrate":
             return _calibrate(args, segmenter_factory)
         if args.train_command == "benchmark":
