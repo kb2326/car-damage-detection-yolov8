@@ -32,6 +32,9 @@ class PolicyRepository:
                 raise ValueError(f"duplicate policy id {record.policy_id}")
             self._by_id[record.policy_id] = record
 
+    def get_record(self, policy_id: str) -> PolicyRecord | None:
+        return self._by_id.get(policy_id)
+
     def get_coverage(self, policy_id: str) -> Coverage:
         record = self._by_id.get(policy_id)
         if record is None:
