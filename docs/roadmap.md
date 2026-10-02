@@ -45,6 +45,7 @@ LinkedIn only, as a single post after M8. Material is collected here as each mil
 | M0 | Audit of the course project: every label the app showed was wrong (7-class model, 17-class list); val mAP50 0.137 |
 | M1 | Working end-to-end skeleton on day one; baseline route accuracy 0.78, escalation recall 1.00, 0 of 11 correct fast-tracks ("safe but not yet useful") |
 | M2 | Roboflow v6 turned out to be CarDD re-uploaded; dedupe found the same dent photo in train and valid under two ids (4 CarDD and 29 parts images moved); foundation-model part labels: 133 of 455 proposals passed review, wheels and lights yes, doors and bumpers no; the CPU run overheated the laptop, so it moved to a free Kaggle GPU (1 minute for 100 images) |
+| M3a | Trained two YOLO11-seg damage models on a free Kaggle GPU (test mask mAP50 0.733, up from the course model's 0.137); golden fast-tracks 4 to 11 of 30; the safety gate caught my own design mistake (outline vs box sizing) before it shipped |
 
 ---
 
@@ -113,11 +114,20 @@ something that already works.*
 
 *Train the "eyes" of the system and prove how good they are.*
 
-- [ ] Damage segmentation model (YOLO11-seg) trained on Colab
+**M3a: damage model (done)**
+
+- [x] Damage segmentation model (YOLO11n/s-seg) trained on a free Kaggle GPU (ADR 0008)
+- [x] Champion `damage-yolo11s-v1` chosen on validation: test mask mAP50 0.733 (target 0.50)
+- [x] MLflow experiment tracking and model registry (local SQLite logbook)
+- [x] Golden v1 with our model: route accuracy 0.80, escalation recall 1.00, 11 of 30 correct fast-tracks
+- [x] Gate caught a design mistake: sizing damage by its outline broke safety (0.97); pricing by box, as the rate card defines, restored 1.00
+
+**M3b: parts, fusion, calibration (in progress)**
+
 - [ ] Part segmentation model
 - [ ] Fusion: which damage is on which part, and how big it is
-- [ ] Calibrate confidence scores; choose threshold τ
-- [ ] MLflow experiment tracking and model registry; ONNX export
+- [ ] Calibrate confidence scores; recommend threshold τ (owner decides)
+- [ ] ONNX export
 - [ ] Model card (target: mask mAP50 ≥ 0.50)
 - [ ] Stretch: RT-DETR comparison
 
