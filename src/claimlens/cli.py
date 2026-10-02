@@ -30,6 +30,12 @@ from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
 from claimlens.intake import submit_claim
+from claimlens.knowledge.commands import (
+    EmbedderFactory,
+    add_knowledge_parser,
+    run_knowledge_command,
+)
+from claimlens.knowledge.embed import Embedder
 from claimlens.policy import load_policies
 from claimlens.pricing import load_rate_card
 from claimlens.review.decisions import (
@@ -150,6 +156,12 @@ def _ultralytics_segmenter(weights: Path, name: str) -> Segmenter:
     return UltralyticsSegmenter(weights, name=name)
 
 
+def _fastembedder() -> Embedder:
+    from claimlens.knowledge.fastembedder import FastEmbedder
+
+    return FastEmbedder()
+
+
 def _export_onnx(weights: Path) -> Path:
     from claimlens.vision.ultralytics_segmenter import export_onnx
 
@@ -233,6 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--golden", type=Path, default=Path("evals/golden/v1/claims.jsonl"))
     review.add_argument("--reviewer", default="reviewer")
     add_train_parser(sub)
+    add_knowledge_parser(sub)
     return parser
 
 
@@ -282,8 +295,11 @@ def main(
     trainer_factory: TrainerFactory = _ultralytics_trainer,
     segmenter_factory: SegmenterFactory = _ultralytics_segmenter,
     exporter: ExporterFactory = _export_onnx,
+    embedder_factory: EmbedderFactory = _fastembedder,
 ) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "knowledge":
+        return run_knowledge_command(args, embedder_factory=embedder_factory)
     try:
         return _dispatch(
             args, detector_factory, labeller_factory, trainer_factory, segmenter_factory, exporter
