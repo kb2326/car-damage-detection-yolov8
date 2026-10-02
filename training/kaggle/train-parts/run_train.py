@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO = "https://github.com/kb2326/claimlens.git"
 # The exact commit this job runs: the pushed commit that contains the training code.
-COMMIT = "SET-BEFORE-PUSH"
+COMMIT = "7b97f54cbc59987f8f2b5a3cb187904f858a81ce"
 DATASET = "parts-v1"
 RUNS = ("parts-yolo11n-v1",)
 WORK = Path("/tmp/claimlens")
