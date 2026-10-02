@@ -1,6 +1,8 @@
 # Decision policy thresholds (spec section 11). Versioned with the code.
-version = "decision-policy-v0"
+version = "decision-policy-v1"
 fraud_score_threshold = 0.5
 max_fast_track_cost_usd = 3000
-# Provisional value for the legacy model. Recalibrated from the PR curve in M3.
-min_finding_confidence = 0.40
+# R6: the lowest threshold where at least 80% of the damage model's calibrated validation findings
+# are correct (temperature 0.80; reports/models/calibration/damage-yolo11s-v1.json, ADR 0009).
+# Approved by the owner on 2026-10-02. Was 0.40, a provisional value for the legacy model.
+min_finding_confidence = 0.65

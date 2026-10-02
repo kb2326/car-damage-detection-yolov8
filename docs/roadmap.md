@@ -129,7 +129,7 @@ something that already works.*
 - [x] Fusion: which damage is on which part, and how big it is (88% of golden findings get a part)
 - [x] Part-ratio severity (rate card v1), box fallback (ADR 0009)
 - [x] Calibrate confidence: T = 0.80, ECE 0.059 to 0.040; recommended R6 threshold 0.65
-- [ ] **You:** decide on the R6 threshold (0.65 costs 2 of 11 golden fast-tracks); a change is a separate PR
+- [x] R6 threshold set to 0.65 (decision-policy-v1, owner-approved): golden 0.78 / 1.00 / 9 of 30
 - [x] ONNX export (slower than `.pt` on this CPU, so `.pt` stays the default)
 - [x] Golden v1 with the fused detector: 0.80 / 1.00 / 11 of 30
 - [x] Retro (`docs/retros/m3-vision-models.md`)
