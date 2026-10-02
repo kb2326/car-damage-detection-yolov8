@@ -29,6 +29,10 @@ class EventType(StrEnum):
     AGENT_RECOMMENDED = "AgentRecommended"
     ROUTE_DECIDED = "RouteDecided"
     STAGE_FAILED = "StageFailed"
+    NOTE_ADDED = "NoteAdded"
+    QUEUE_ASSIGNED = "QueueAssigned"
+    PAYMENT_ISSUED = "PaymentIssued"
+    TOOL_CALLED = "ToolCalled"
 
 
 class Payload(Frozen):
@@ -103,6 +107,35 @@ class StageFailed(Payload):
     photo_id: str | None = None
 
 
+class NoteAdded(Payload):
+    event_type: ClassVar[EventType] = EventType.NOTE_ADDED
+    text: str
+    author: str
+    idempotency_key: str
+
+
+class QueueAssigned(Payload):
+    event_type: ClassVar[EventType] = EventType.QUEUE_ASSIGNED
+    queue: str
+    idempotency_key: str
+
+
+class PaymentIssued(Payload):
+    event_type: ClassVar[EventType] = EventType.PAYMENT_ISSUED
+    payment_id: str
+    amount_usd: int
+    idempotency_key: str
+
+
+class ToolCalled(Payload):
+    event_type: ClassVar[EventType] = EventType.TOOL_CALLED
+    server: str
+    tool: str
+    profile: str
+    input_sha256: str
+    outcome: str
+
+
 PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
     cls.event_type: cls
     for cls in (
@@ -117,6 +150,10 @@ PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
         AgentRecommended,
         RouteDecided,
         StageFailed,
+        NoteAdded,
+        QueueAssigned,
+        PaymentIssued,
+        ToolCalled,
     )
 }
 

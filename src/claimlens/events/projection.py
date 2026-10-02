@@ -22,13 +22,17 @@ from claimlens.events.payloads import (
     CostEstimated,
     DamageDetected,
     IntegrityChecked,
+    NoteAdded,
     Payload,
+    PaymentIssued,
     PhotoAccepted,
     PhotoRejected,
     PhotoUploaded,
     PolicyRetrieved,
+    QueueAssigned,
     RouteDecided,
     StageFailed,
+    ToolCalled,
     parse_payload,
 )
 
@@ -64,6 +68,9 @@ class ClaimState:
     recommendation: AgentRecommendation | None = None
     decision: Decision | None = None
     failures: list[StageFailed] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    queue: str | None = None
+    payments: list[str] = field(default_factory=list)
     last_seq: int = 0
 
     @property
@@ -120,7 +127,23 @@ def _apply(state: ClaimState, event: ClaimEvent, payload: Payload) -> None:
             state.decision = payload.decision
         case StageFailed():
             state.failures.append(payload)
+        case NoteAdded():
+            state.notes.append(payload.text)
+        case QueueAssigned():
+            state.queue = payload.queue
+        case PaymentIssued():
+            state.payments.append(payload.payment_id)
+        case ToolCalled():
+            pass
         case ClaimReported():
             raise ValueError("ClaimReported may only be the first event of a claim")
         case _:
             raise ValueError(f"no fold rule for event type {event.type}")
+
+
+def find_by_idempotency_key(events: Sequence[ClaimEvent], key: str) -> ClaimEvent | None:
+    """The first write event recorded with this idempotency key, if any."""
+    for event in events:
+        if event.payload.get("idempotency_key") == key:
+            return event
+    return None
