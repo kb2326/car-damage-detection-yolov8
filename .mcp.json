@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "claimlens-vision": {
+      "command": "uv",
+      "args": ["run", "--no-sync", "claimlens", "mcp", "vision", "--profile", "demo"]
+    },
+    "claimlens-policy": {
+      "command": "uv",
+      "args": ["run", "--no-sync", "claimlens", "mcp", "policy-admin", "--profile", "demo"]
+    },
+    "claimlens-claims": {
+      "command": "uv",
+      "args": ["run", "--no-sync", "claimlens", "mcp", "claims-system", "--profile", "demo"]
+    }
+  }
+}

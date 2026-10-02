@@ -169,6 +169,31 @@ uv run claimlens verify <claim-id>   # check the hash chain
 uv run claimlens resume <claim-id>   # finish a claim that was interrupted
 ```
 
+## Use ClaimLens from Claude Code (MCP)
+
+ClaimLens runs as four MCP tool servers (ADR 0010). Each one shows and accepts only the tools its
+profile allows. Open this repository in [Claude Code](https://claude.com/claude-code): the
+checked-in `.mcp.json` starts the vision, policy and claims servers with the read-only **`demo`**
+profile, so approve them when asked. Then ask, for example:
+
+- *"What damage is in `tests/fixtures/images/dent_1.jpg`, and which part is it on?"*
+- *"Is policy P-1001 covered for collision, and what is the deductible?"*
+- *"Add a note to claim <id> saying the photo is blurry."* The demo profile is read-only, so the
+  server refuses with `ScopeDenied`.
+
+Run a server yourself with `uv run claimlens mcp vision --profile demo` (stdio). For **Claude
+Desktop**, add the same `command` and `args` from `.mcp.json` to its config, with `cwd` set to this
+folder.
+
+| Profile | Can use |
+|---|---|
+| `intake` | photo quality check, policy lookup |
+| `triage` | all read tools, plus `add_note`, `assign_queue` |
+| `demo` | all read tools (no writes) |
+| `operator` (human, built-in) | `issue_payment`, only with a token from `claimlens approve-payment <claim> <amount>` |
+
+Payments are deliberately not in `.mcp.json`. No agent profile can pay.
+
 ## Roadmap
 
 | Milestone | Focus |

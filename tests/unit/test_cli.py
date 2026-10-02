@@ -1,7 +1,7 @@
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -118,3 +118,17 @@ def test_bad_what_if_value_is_a_usage_error(
     with pytest.raises(SystemExit):
         main(["eval-triage", "--golden", "g.jsonl", "--report", "r.md", "--what-if", "abc"])
     assert "--what-if" in capsys.readouterr().err
+
+
+def test_approve_payment_prints_a_token_for_decided_claims(
+    tmp_path: Path,
+    make_image: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CLAIMLENS_APPROVAL_SECRET", "s3cret")
+    claim = _run_claim(tmp_path, make_image, capsys)
+    base = ["--db", str(tmp_path / "claims.db"), "--blobs", str(tmp_path / "blobs")]
+    assert main([*base, "approve-payment", claim, "300"]) == 0
+    assert len(capsys.readouterr().out.strip()) > 40
+    assert main([*base, "approve-payment", str(uuid4()), "300"]) == 2
