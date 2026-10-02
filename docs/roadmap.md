@@ -47,6 +47,7 @@ LinkedIn only, as a single post after M8. Material is collected here as each mil
 | M2 | Roboflow v6 turned out to be CarDD re-uploaded; dedupe found the same dent photo in train and valid under two ids (4 CarDD and 29 parts images moved); foundation-model part labels: 133 of 455 proposals passed review, wheels and lights yes, doors and bumpers no; the CPU run overheated the laptop, so it moved to a free Kaggle GPU (1 minute for 100 images) |
 | M3a | Trained two YOLO11-seg damage models on a free Kaggle GPU (test mask mAP50 0.733, up from the course model's 0.137); golden fast-tracks 4 to 11 of 30; the safety gate caught my own design mistake (outline vs box sizing) before it shipped |
 | M3b | Part model plus fusion: "dent on rear bumper, 6% of the part"; calibration showed my model was slightly under-confident (T 0.80); ONNX turned out slower than PyTorch on a laptop CPU; the safety gate caught the same sizing mistake a second time in a new code path |
+| M4a | Our models and mock company systems as MCP tools; Claude Code can use them, and the server refuses anything outside the profile's job, including a direct call to an unadvertised tool; payments need a human-signed token |
 
 ---
 
@@ -140,10 +141,20 @@ something that already works.*
 
 *Give the agent safe, standard ways to use our models and (mock) company systems.*
 
-- [ ] MCP servers: vision, policy-admin, claims-system, payments
-- [ ] Per-agent permissions (scopes), with tests
+**M4a: MCP tools (done)**
+
+- [x] MCP servers: vision, policy-admin, claims-system, payments (ADR 0010)
+- [x] Per-agent permissions (scopes), enforced at listing and at call, with a scope-matrix test
+- [x] Payments: human `operator` profile plus signed approval token (`claimlens approve-payment`)
+- [x] Idempotent writes; every call audited (claim log or `var/mcp-audit.jsonl`)
+- [x] Red-team starter tests: ASI02 tool misuse, ASI03 privilege abuse, injected note as data
+- [x] Claude Code demo (`.mcp.json`, read-only `demo` profile); real stdio test with the fused model
+- [ ] **You:** try the Claude Code demo (README, "Use ClaimLens from Claude Code")
+
+**M4b: LLM gateway and policy search (next)**
+
 - [ ] LLM gateway: model routing, retries, fallback, caching, cost caps
-- [ ] Fictional policy documents plus hybrid search with citations
+- [ ] Fictional policy documents plus hybrid search with citations (`search_policy_clauses`)
 
 ## M5 · Triage agent (Nov 27 – Dec 10)
 
