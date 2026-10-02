@@ -128,3 +128,29 @@ stages:
       hash: md5
       md5: 58bcd73bc6154fe23da67fa3271d4661
       size: 365
+  build-fusion-eval-v1:
+    cmd: uv run claimlens review apply parts --job fusion-eval-v1
+    deps:
+    - path: data/interim/fusion-eval-v1
+      hash: md5
+      md5: 204d225099a72366259871c6effc1ea9.dir
+      size: 140164
+      nfiles: 1
+    - path: reviews/fusion-eval-v1.json
+      hash: md5
+      md5: 1c83d8a90e1a1186b66d670916e0f3c4
+      size: 38335
+    - path: src/claimlens/review/decisions.py
+      hash: md5
+      md5: 49e1fcc88a41549a44190aff9204383e
+      size: 3145
+    outs:
+    - path: data/processed/fusion-eval-v1
+      hash: md5
+      md5: 43c59800dd05d7e495a0e2c57fbbc26e.dir
+      size: 54304
+      nfiles: 1
+    - path: reports/data/fusion-eval-v1-review.json
+      hash: md5
+      md5: 9293a05611648c41569ce879e337f9a9
+      size: 127

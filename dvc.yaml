@@ -47,3 +47,14 @@ stages:
     metrics:
       - reports/data/fusion-eval-v1-autolabel.json:
           cache: false
+  build-fusion-eval-v1:
+    cmd: uv run claimlens review apply parts --job fusion-eval-v1
+    deps:
+      - data/interim/fusion-eval-v1
+      - reviews/fusion-eval-v1.json
+      - src/claimlens/review/decisions.py
+    outs:
+      - data/processed/fusion-eval-v1
+    metrics:
+      - reports/data/fusion-eval-v1-review.json:
+          cache: false
