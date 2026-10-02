@@ -199,6 +199,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify = sub.add_parser("verify", help="verify a claim's hash chain")
     verify.add_argument("claim_id", type=UUID)
 
+    mcp = sub.add_parser("mcp", help="run a ClaimLens MCP server over stdio")
+    mcp.add_argument("server", choices=["vision", "policy-admin", "claims-system", "payments"])
+    mcp.add_argument("--profile", required=True, help="agent profile from config/agents.toml")
+
     approve = sub.add_parser("approve-payment", help="human step: sign a payment approval token")
     approve.add_argument("claim_id", type=UUID)
     approve.add_argument("amount", type=int, help="amount in whole US dollars")
@@ -307,6 +311,8 @@ def _dispatch(
         return _data(args, labeller_factory)
     if args.command == "review":
         return _review(args)
+    if args.command == "mcp":
+        return _mcp(args, detector_factory)
     if args.command == "train":
         return run_train_command(
             args,
@@ -355,6 +361,34 @@ def _resume(args: argparse.Namespace, store: SQLiteEventStore, factory: Detector
     deps = make_deps(store, BlobStore(args.blobs), args.config, _make_detector(args, factory))
     process_claim(args.claim_id, deps)
     print(format_summary(fold(store.load(args.claim_id))))
+    return 0
+
+
+def _mcp(args: argparse.Namespace, factory: DetectorFactory) -> int:
+    from claimlens.mcp.serve import build_server
+
+    def damage() -> Detector:
+        return factory(resolve_detector(args.detector or "fused", args.weights, args.config))
+
+    def parts() -> Segmenter:
+        spec = resolve_detector("fused", None, args.config)
+        if spec.parts_weights is None:
+            raise ValueError("no parts champion: run `claimlens train select --task parts`")
+        return _ultralytics_segmenter(spec.parts_weights, spec.parts_weights.parent.name)
+
+    try:
+        server = build_server(
+            args.server,
+            args.profile,
+            args.config,
+            args.db,
+            damage_factory=damage,
+            parts_factory=parts,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    server.run("stdio")
     return 0
 
 
