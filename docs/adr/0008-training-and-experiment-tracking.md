@@ -43,9 +43,12 @@ redistribution (ADR 0004), so they cannot be published.
   - Weights live in `models/<task>/<run>/` (tracked with `dvc add`, local remote), in the MLflow
     artifact store and in the private Kaggle output.
   - They never go to git, Hugging Face or a public Kaggle item.
-- **Measure damage size from the mask, not the box.** `YoloSegDetector` computes
-  `image_area_fraction` from the predicted polygon (shoelace formula), because a box around a
-  diagonal scratch is mostly undamaged panel.
+- **Price by the damage box, as the rate card defines.** The first design sized damage by its
+  mask outline (closer to the real damage). On golden v1 it fast-tracked two claims that needed a
+  person: g121 (true dent box 0.283 of the photo, outline 0.159) and g014 (labelled "smash", a
+  class CarDD does not have). Escalation recall fell to 0.97. Box sizing restored 1.00 with the
+  same 11 correct fast-tracks, so it was adopted. Mask outlines are used for part fusion in M3b,
+  which has its own part-ratio bands.
 
 ## Consequences
 
