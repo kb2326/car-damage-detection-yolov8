@@ -48,7 +48,7 @@ settings; they are not insurance claim photos.
    Warnings: 2 tiny damage instances; 147 unlabelled part images.
 3. **Deduplication:** SHA-256 plus 64-bit perceptual hash, Hamming distance at most 6, clustered
    with union-find, including the golden-claims photos.
-   - `damage-v1`: 10 near-duplicate groups inside CarDD (for example ids 001882 and 003840 are
+   - `damage-v1`: 5 near-duplicate groups (10 images) inside CarDD (for example ids 001882 and 003840 are
      the same photo, re-exposed); **4 images moved** so no group spans two splits.
    - `parts-v1`: **29 images moved** across splits.
    - No CarDD image is a near-duplicate of a golden-claims photo.

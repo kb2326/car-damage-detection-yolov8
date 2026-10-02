@@ -35,3 +35,15 @@ stages:
     metrics:
       - reports/data/parts-v1-stats.json:
           cache: false
+  autolabel-fusion-eval-v1:
+    cmd: uv run --group autolabel claimlens data autolabel fusion-eval-v1
+    deps:
+      - data/interim/damage-v1
+      - config/autolabel.toml
+      - config/taxonomy.toml
+      - src/claimlens/autolabel
+    outs:
+      - data/interim/fusion-eval-v1
+    metrics:
+      - reports/data/fusion-eval-v1-autolabel.json:
+          cache: false
