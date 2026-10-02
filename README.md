@@ -178,6 +178,8 @@ profile, so approve them when asked. Then ask, for example:
 
 - *"What damage is in `tests/fixtures/images/dent_1.jpg`, and which part is it on?"*
 - *"Is policy P-1001 covered for collision, and what is the deductible?"*
+- *"What does policy P-1001 say about a rental car after a collision? Quote the clause."* (run
+  `uv sync --group knowledge && uv run claimlens knowledge build` once first)
 - *"Add a note to claim <id> saying the photo is blurry."* The demo profile is read-only, so the
   server refuses with `ScopeDenied`.
 
