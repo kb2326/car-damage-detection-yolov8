@@ -41,6 +41,9 @@ def add_train_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     train_sub.add_parser("select", help="choose the champion on validation mask mAP50")
     report = train_sub.add_parser("report", help="write the damage model report")
     report.add_argument("--out", type=Path, required=True)
+    bench = train_sub.add_parser("benchmark", help="median CPU ms per image on test photos")
+    bench.add_argument("run")
+    bench.add_argument("--images", type=int, default=20)
 
 
 def _git_commit() -> str:
@@ -131,6 +134,22 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _benchmark(args: argparse.Namespace, detector_factory: DetectorFactory) -> int:
+    from claimlens.training.benchmark import benchmark_detector
+    from claimlens.training.manifest import ModelReport, read_json, write_json
+
+    repo_root = Path.cwd()
+    report_path = repo_root / "reports" / "models" / f"{args.run}.json"
+    report = read_json(report_path, ModelReport)
+    test_dir = repo_root / "data" / "processed" / report.dataset / "images" / "test"
+    images = sorted(test_dir.glob("*.jpg"))[: args.images]
+    detector = detector_factory("yolo-seg", repo_root / "models" / "damage" / args.run / "best.pt")
+    ms = benchmark_detector(detector, images)
+    write_json(report_path, report.model_copy(update={"cpu_ms_per_image": round(ms, 1)}))
+    print(f"{args.run}: median {ms:.0f} ms per image on CPU over {len(images)} images")
+    return 0
+
+
 def run_train_command(
     args: argparse.Namespace,
     *,
@@ -146,6 +165,8 @@ def run_train_command(
             return _select(args)
         if args.train_command == "report":
             return _report(args)
+        if args.train_command == "benchmark":
+            return _benchmark(args, detector_factory)
         raise ValueError(f"unknown train command {args.train_command!r}")
     except Exception as exc:
         from claimlens.training.tracking import TrainingUnavailableError

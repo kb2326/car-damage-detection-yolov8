@@ -107,7 +107,7 @@ def test_eval_triage_command_writes_a_report(
             "--report",
             str(report),
         ],
-        detector_factory=lambda _: FakeDetector(),
+        detector_factory=lambda *_: FakeDetector(),
     )
 
     assert code == 0

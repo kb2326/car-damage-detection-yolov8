@@ -43,18 +43,43 @@ from claimlens.review.decisions import (
 )
 from claimlens.training.commands import TrainerFactory, add_train_parser, run_train_command
 from claimlens.training.run import Trainer
+from claimlens.training.select import load_models_config
 from claimlens.vision.base import Detector
 from claimlens.workflow import PipelineDeps, process_claim
 
 DEFAULT_WEIGHTS = Path("models/legacy/yolov8n-cardamage-v6.pt")
-DetectorFactory = Callable[[Path], Detector]
+DetectorFactory = Callable[[str, Path], Detector]
 LabellerFactory = Callable[[AutolabelJob], PartLabeller]
 
 
-def _legacy_detector(weights: Path) -> Detector:
+def _default_detector(kind: str, weights: Path) -> Detector:
+    if kind == "yolo-seg":
+        from claimlens.vision.yolo_seg import YoloSegDetector
+
+        return YoloSegDetector(weights, run=weights.parent.name)
     from claimlens.vision.legacy_yolo import LegacyYoloDetector
 
     return LegacyYoloDetector(weights)
+
+
+def resolve_detector(
+    detector: str | None, weights: Path | None, config_dir: Path
+) -> tuple[str, Path]:
+    """Explicit flags win; otherwise the champion in config/models.toml; otherwise legacy."""
+    models = load_models_config(config_dir / "models.toml")
+    kind = detector or ("yolo-seg" if models is not None else "legacy")
+    if weights is not None:
+        return kind, weights
+    if kind == "legacy":
+        return kind, DEFAULT_WEIGHTS
+    if models is None:
+        raise ValueError("no champion model: run `claimlens train select` or pass --weights")
+    return kind, Path(models.damage.weights)
+
+
+def _make_detector(args: argparse.Namespace, factory: DetectorFactory) -> Detector:
+    kind, weights = resolve_detector(args.detector, args.weights, args.config)
+    return factory(kind, weights)
 
 
 def _ultralytics_trainer() -> Trainer:
@@ -82,7 +107,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--db", type=Path, default=Path("var/claimlens.db"))
     parser.add_argument("--blobs", type=Path, default=Path("var/blobs"))
     parser.add_argument("--config", type=Path, default=Path("config"))
-    parser.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS)
+    parser.add_argument("--weights", type=Path, default=None)
+    parser.add_argument("--detector", choices=["legacy", "yolo-seg"], default=None)
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="submit a claim and process it")
@@ -163,7 +189,7 @@ def format_audit_trail(events: Sequence[ClaimEvent]) -> str:
 def main(
     argv: Sequence[str] | None = None,
     *,
-    detector_factory: DetectorFactory = _legacy_detector,
+    detector_factory: DetectorFactory = _default_detector,
     labeller_factory: LabellerFactory = _grounded_sam,
     trainer_factory: TrainerFactory = _ultralytics_trainer,
 ) -> int:
@@ -178,7 +204,7 @@ def main(
         return run_train_command(
             args,
             trainer_factory=trainer_factory,
-            detector_factory=lambda kind, weights: detector_factory(weights),
+            detector_factory=detector_factory,
         )
     store = SQLiteEventStore(args.db)
     try:
@@ -193,7 +219,7 @@ def main(
 
 def _run(args: argparse.Namespace, store: SQLiteEventStore, factory: DetectorFactory) -> int:
     blobs = BlobStore(args.blobs)
-    deps = make_deps(store, blobs, args.config, factory(args.weights))
+    deps = make_deps(store, blobs, args.config, _make_detector(args, factory))
     claim_id = submit_claim(
         store, blobs, policy_id=args.policy, description=args.description, photo_paths=args.photos
     )
@@ -216,7 +242,7 @@ def _resume(args: argparse.Namespace, store: SQLiteEventStore, factory: Detector
     except ChainIntegrityError as exc:
         print(f"error: audit log failed verification: {exc}", file=sys.stderr)
         return 1
-    deps = make_deps(store, BlobStore(args.blobs), args.config, factory(args.weights))
+    deps = make_deps(store, BlobStore(args.blobs), args.config, _make_detector(args, factory))
     process_claim(args.claim_id, deps)
     print(format_summary(fold(store.load(args.claim_id))))
     return 0
@@ -241,7 +267,7 @@ def _inspect(args: argparse.Namespace, store: SQLiteEventStore) -> int:
 
 def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     cases = load_golden(args.golden)
-    detector = factory(args.weights)
+    detector = _make_detector(args, factory)
 
     def make(case_dir: Path) -> PipelineDeps:
         store = SQLiteEventStore(case_dir / "claims.db")

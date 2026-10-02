@@ -12,7 +12,7 @@ from tests.fakes import CONFIG_DIR, FakeDetector, SimulatedCrashError
 def _cli(tmp_path: Path, *args: str, detector: FakeDetector | None = None) -> int:
     base = ["--db", str(tmp_path / "claims.db"), "--blobs", str(tmp_path / "blobs")]
     chosen = detector or FakeDetector()
-    return main([*base, "--config", str(CONFIG_DIR), *args], detector_factory=lambda _: chosen)
+    return main([*base, "--config", str(CONFIG_DIR), *args], detector_factory=lambda *_: chosen)
 
 
 def _run_claim(
