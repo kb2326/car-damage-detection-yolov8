@@ -125,6 +125,7 @@ class PaymentIssued(Payload):
     payment_id: str
     amount_usd: int
     idempotency_key: str
+    approval_sha256: str = ""
 
 
 class ToolCalled(Payload):

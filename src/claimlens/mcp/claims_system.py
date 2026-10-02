@@ -47,7 +47,10 @@ def event_audit(store_path: Path, fallback: AuditSink) -> AuditSink:
                         input_sha256=record.input_sha256,
                         outcome=record.outcome,
                     ),
-                    Actor(kind=ActorKind.AGENT, name=f"mcp:{record.profile}"),
+                    Actor(
+                        kind=ActorKind.HUMAN if record.profile == "operator" else ActorKind.AGENT,
+                        name=f"mcp:{record.profile}",
+                    ),
                 )
                 return
         finally:
@@ -119,7 +122,7 @@ def build_claims_system(profile: Profile, store_path: Path, audit: AuditSink) ->
             if uuid is None:
                 raise ValueError(f"not a claim id: {claim_id!r}")
             events = store.load(uuid)
-            existing = find_by_idempotency_key(events, key)
+            existing = find_by_idempotency_key(events, key, payload.event_type.value)
             if existing is not None:
                 return WriteResult(event_seq=existing.seq, duplicate=True)
             return WriteResult(event_seq=store.append(uuid, payload, actor).seq, duplicate=False)

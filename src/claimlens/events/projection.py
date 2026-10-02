@@ -141,9 +141,14 @@ def _apply(state: ClaimState, event: ClaimEvent, payload: Payload) -> None:
             raise ValueError(f"no fold rule for event type {event.type}")
 
 
-def find_by_idempotency_key(events: Sequence[ClaimEvent], key: str) -> ClaimEvent | None:
-    """The first write event recorded with this idempotency key, if any."""
+def find_by_idempotency_key(
+    events: Sequence[ClaimEvent], key: str, event_type: str
+) -> ClaimEvent | None:
+    """The first event of this type recorded with this idempotency key, if any.
+
+    Keys are scoped to the event type, so a note key can never swallow a queue or payment write.
+    """
     for event in events:
-        if event.payload.get("idempotency_key") == key:
+        if event.type == event_type and event.payload.get("idempotency_key") == key:
             return event
     return None

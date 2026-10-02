@@ -47,15 +47,23 @@ def build_payments(
                 uuid = UUID(claim_id)
                 events = store.load(uuid)
                 state = fold(events)
-                if state.decision is not None and state.decision.route is Route.FRAUD_REVIEW:
+                if state.decision is None:
+                    raise ValueError("the claim has no decision yet, so it cannot be paid")
+                if state.decision.route is Route.FRAUD_REVIEW:
                     raise ValueError("claims routed to FRAUD_REVIEW are never paid automatically")
-                existing = find_by_idempotency_key(events, idempotency_key)
+                existing = find_by_idempotency_key(events, idempotency_key, "PaymentIssued")
                 if existing is not None:
                     return PaymentResult(
                         payment_id=str(existing.payload["payment_id"]),
                         event_seq=existing.seq,
                         duplicate=True,
                     )
+                approval = hashlib.sha256(approval_token.encode()).hexdigest()
+                if any(
+                    e.type == "PaymentIssued" and e.payload.get("approval_sha256") == approval
+                    for e in events
+                ):
+                    raise ValueError("ApprovalInvalid: this approval token was already used")
                 payment_id = (
                     "pay-"
                     + hashlib.sha256(f"{claim_id}|{idempotency_key}".encode()).hexdigest()[:12]
@@ -66,6 +74,7 @@ def build_payments(
                         payment_id=payment_id,
                         amount_usd=amount_usd,
                         idempotency_key=idempotency_key,
+                        approval_sha256=approval,
                     ),
                     Actor(kind=ActorKind.HUMAN, name="payments-operator"),
                 )

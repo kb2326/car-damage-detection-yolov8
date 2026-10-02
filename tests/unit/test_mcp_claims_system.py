@@ -119,3 +119,16 @@ def test_event_audit_writes_tool_called_to_the_claim(tmp_path: Path) -> None:
     events = SQLiteEventStore(db).load(claim)
     assert events[-1].type == "ToolCalled"
     assert [r.claim_id for r in fallback.records] == ["not-a-uuid"]
+
+
+def test_keys_are_scoped_to_the_event_type(tmp_path: Path) -> None:
+    db = tmp_path / "claims.db"
+    claim = _claim(db)
+    server = build_claims_system(PROFILES["triage"], db, MemoryAudit())
+    call(server, "add_note", {"claim_id": str(claim), "text": "x", "idempotency_key": "k1"})
+    queued = call(
+        server, "assign_queue", {"claim_id": str(claim), "queue": "fraud", "idempotency_key": "k1"}
+    ).structured_content
+    assert queued is not None
+    assert queued["duplicate"] is False
+    assert fold(SQLiteEventStore(db).load(claim)).queue == "fraud"

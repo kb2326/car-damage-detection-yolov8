@@ -98,3 +98,55 @@ def test_agent_profiles_see_no_payment_tool(tmp_path: Path) -> None:
     for profile in load_profiles(ROOT / "config" / "agents.toml").values():
         server = build_payments(profile, tmp_path / "c.db", SECRET, MemoryAudit())
         assert tool_names(server) == []
+
+
+def test_one_approval_pays_only_once(tmp_path: Path) -> None:
+    db = tmp_path / "c.db"
+    claim = _claim(db)
+    token = issue_approval(str(claim), 850, SECRET, now=NOW)
+    server = _server(db)
+    assert not _pay(server, claim, 850, token, key="a").is_error
+    replay = _pay(server, claim, 850, token, key="b")
+    assert replay.is_error
+    assert "already used" in error_text(replay)
+    assert len(fold(SQLiteEventStore(db).load(claim)).payments) == 1
+
+
+def test_claims_without_a_decision_are_not_paid(tmp_path: Path) -> None:
+    db = tmp_path / "c.db"
+    store = SQLiteEventStore(db)
+    claim = uuid4()
+    store.append(claim, ClaimReported(policy_id="P-1001", description=""), SYSTEM)
+    store.close()
+    token = issue_approval(str(claim), 850, SECRET, now=NOW)
+    result = _pay(_server(db), claim, 850, token)
+    assert result.is_error
+    assert "no decision" in error_text(result)
+
+
+def test_a_note_key_does_not_block_a_payment(tmp_path: Path) -> None:
+    from claimlens.events.payloads import NoteAdded
+
+    db = tmp_path / "c.db"
+    claim = _claim(db)
+    store = SQLiteEventStore(db)
+    store.append(claim, NoteAdded(text="x", author="a", idempotency_key="p1"), SYSTEM)
+    store.close()
+    token = issue_approval(str(claim), 850, SECRET, now=NOW)
+    result = _pay(_server(db), claim, 850, token, key="p1")
+    assert not result.is_error
+    assert result.structured_content is not None
+    assert result.structured_content["duplicate"] is False
+
+
+def test_payment_audits_name_a_human_actor(tmp_path: Path) -> None:
+    from claimlens.mcp.claims_system import event_audit
+
+    db = tmp_path / "c.db"
+    claim = _claim(db)
+    token = issue_approval(str(claim), 850, SECRET, now=NOW)
+    server = build_payments(OPERATOR, db, SECRET, event_audit(db, MemoryAudit()), now=lambda: NOW)
+    _pay(server, claim, 850, token)
+    audit = SQLiteEventStore(db).load(claim)[-1]
+    assert audit.type == "ToolCalled"
+    assert audit.actor.kind.value == "human"

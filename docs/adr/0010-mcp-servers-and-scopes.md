@@ -55,7 +55,16 @@ Protocol) is the standard way to expose tools to AI clients.
   - The red-team tests (ASI02, ASI03, a note containing an injected instruction) run in CI with no
     LLM.
   - A real stdio test runs the fused model through a separate server process (about 10 s).
-- **What it costs:** one process per server, and each vision server loads the models on its first
-  call.
+- **What it costs:**
+  - One process per server, and each vision server loads the models on its first call.
+  - Every call about a claim, including reads and refused calls from the read-only `demo` profile,
+    adds a `ToolCalled` event to that claim's log. That is deliberate, so reads are audited too,
+    but a client can grow a claim's log. Rate limits are an M7 item.
+- **Review fixes:**
+  - Idempotency keys are scoped to the event type, so a note key cannot swallow a queue
+    assignment or a payment.
+  - An approval token is single-use: its hash is stored on `PaymentIssued`.
+  - The payments server re-checks that the claim has a decision.
+  - The human operator is audited as a human.
 - **What comes next:** policy search with citations and the LLM gateway (M4b), then the agent
   loop that uses these tools (M5).

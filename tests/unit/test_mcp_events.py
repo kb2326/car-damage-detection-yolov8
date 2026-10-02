@@ -49,5 +49,6 @@ def test_idempotency_lookup_finds_the_first_event() -> None:
     store.append(claim, ClaimReported(policy_id="P-1001", description=""), AGENT)
     first = store.append(claim, NoteAdded(text="a", author="x", idempotency_key="k"), AGENT)
     events = store.load(claim)
-    assert find_by_idempotency_key(events, "k") == first
-    assert find_by_idempotency_key(events, "other") is None
+    assert find_by_idempotency_key(events, "k", "NoteAdded") == first
+    assert find_by_idempotency_key(events, "k", "QueueAssigned") is None
+    assert find_by_idempotency_key(events, "other", "NoteAdded") is None
