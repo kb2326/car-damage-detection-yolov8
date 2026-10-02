@@ -20,6 +20,7 @@ class Limits(Frozen):
     per_claim_usd: float = Field(gt=0.0)
     per_day_usd: float = Field(gt=0.0)
     max_tokens: int = Field(gt=0)
+    max_tokens_ceiling: int = Field(default=4096, gt=0)
     attempts_per_model: int = Field(ge=1)
     backoff_seconds: float = Field(ge=0.0)
 

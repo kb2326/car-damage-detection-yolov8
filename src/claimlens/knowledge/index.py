@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from claimlens.knowledge.clauses import Clause
 from claimlens.knowledge.embed import Embedder
 
 TABLE = "policy_clauses"
+MANIFEST = "index.json"
 WORDINGS = frozenset({"basic", "standard", "premium"})
 
 
@@ -48,6 +50,8 @@ def build_index(clauses: Sequence[Clause], embedder: Embedder, path: Path) -> in
     db = _lancedb().connect(str(path))
     table = db.create_table(TABLE, data=rows, mode="overwrite")
     table.create_fts_index("content", replace=True)
+    manifest = {"embedder": embedder.name, "dim": embedder.dim, "clauses": len(rows)}
+    (path / MANIFEST).write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
     return len(rows)
 
 
@@ -58,8 +62,14 @@ class PolicyIndex:
 
     @classmethod
     def open(cls, path: Path, embedder: Embedder) -> PolicyIndex:
-        if not path.exists():
+        if not (path / MANIFEST).is_file():
             raise IndexMissingError(f"no policy index at {path}: run `claimlens knowledge build`")
+        built_with = json.loads((path / MANIFEST).read_text(encoding="utf-8"))["embedder"]
+        if built_with != embedder.name:
+            raise IndexMissingError(
+                f"the policy index was built with {built_with!r}, not {embedder.name!r}: "
+                "run `claimlens knowledge build`"
+            )
         db = _lancedb().connect(str(path))
         try:
             table = db.open_table(TABLE)

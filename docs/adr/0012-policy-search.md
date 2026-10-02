@@ -27,6 +27,9 @@ cover. It does not know that a rental car is covered for 10 days or that racing 
 - **Search is scoped to the claimant's policy:** the policy id maps to a wording, and the query is
   pre-filtered to it. Wordings are checked against a fixed allowlist, so the filter cannot be
   injected.
+- **Strict parsing and a manifest:** a malformed clause heading or a clause with no text stops
+  the build, so a clause can never be silently merged into its neighbour. The index stores an
+  `index.json` manifest, and opening it with a different embedder is refused.
 - **Citations are checkable:** `verify_citations(ids)` returns any id that does not exist; M5 will
   reject recommendations that cite unknown clauses.
 - **Exposed as an MCP tool:** `search_policy_clauses` on `policy-admin`, for the `triage` and

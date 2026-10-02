@@ -7,7 +7,12 @@ from typing import Any
 
 import anthropic
 
-from claimlens.llm.provider import ProviderFatalError, ProviderReply, ProviderTransientError
+from claimlens.llm.provider import (
+    ProviderFatalError,
+    ProviderReply,
+    ProviderTransientError,
+    billable_input_tokens,
+)
 from claimlens.llm.types import Message
 
 _TRANSIENT: tuple[type[Exception], ...] = (
@@ -52,9 +57,16 @@ class AnthropicProvider:
             raise ProviderFatalError(
                 f"{type(exc).__name__}: {getattr(exc, 'status_code', '')}"
             ) from None
+        except anthropic.APIError as exc:
+            # Anything unclassified (413, 422, 409, validation of the response, ...) stops here.
+            raise ProviderFatalError(f"{type(exc).__name__}") from None
         text = "".join(block.text for block in response.content if block.type == "text")
         return ProviderReply(
             text=text,
-            input_tokens=int(response.usage.input_tokens),
+            input_tokens=billable_input_tokens(
+                int(response.usage.input_tokens),
+                getattr(response.usage, "cache_creation_input_tokens", None),
+                getattr(response.usage, "cache_read_input_tokens", None),
+            ),
             output_tokens=int(response.usage.output_tokens),
         )

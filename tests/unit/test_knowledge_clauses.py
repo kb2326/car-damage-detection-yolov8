@@ -39,3 +39,26 @@ def test_every_policy_has_a_known_wording() -> None:
         record = policies.get_record(policy_id)
         assert record is not None
         assert record.wording in wordings
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "### BAS-1.2",
+        "#### BAS-1.3 Too deep",
+        "### BAS-1.4.1 Three levels",
+        "### bas-1.5 lower case",
+    ],
+)
+def test_malformed_clause_headings_are_errors(tmp_path: Path, heading: str) -> None:
+    path = tmp_path / "basic.md"
+    path.write_text(f"### BAS-1.1 Fine\nText.\n{heading}\nMore text.\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="malformed clause heading"):
+        parse_policy(path)
+
+
+def test_a_clause_without_text_is_an_error(tmp_path: Path) -> None:
+    path = tmp_path / "basic.md"
+    path.write_text("### BAS-1.1 Empty\n\n### BAS-1.2 Fine\nText.\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="has no text"):
+        parse_policy(path)

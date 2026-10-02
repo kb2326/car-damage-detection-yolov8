@@ -35,12 +35,21 @@ class Budget:
         ).fetchone()
         return float(row[0])
 
-    def check(self, claim_id: str | None) -> None:
-        if self.spent_today() >= self._limits.per_day_usd:
-            raise BudgetExceeded(f"daily LLM cap of ${self._limits.per_day_usd:.2f} reached")
-        if claim_id is not None and self.spent_claim(claim_id) >= self._limits.per_claim_usd:
+    def check(self, claim_id: str | None, upcoming_usd: float = 0.0) -> None:
+        """Refuse when a cap is reached, or when `upcoming_usd` (the worst case) would pass it."""
+        day, day_cap = self.spent_today(), self._limits.per_day_usd
+        if day >= day_cap:
+            raise BudgetExceeded(f"daily LLM cap of ${day_cap:.2f} reached")
+        if day + upcoming_usd > day_cap:
+            raise BudgetExceeded(f"this call could exceed the daily LLM cap of ${day_cap:.2f}")
+        if claim_id is None:
+            return
+        spent, cap = self.spent_claim(claim_id), self._limits.per_claim_usd
+        if spent >= cap:
+            raise BudgetExceeded(f"LLM cap of ${cap:.2f} reached for claim {claim_id}")
+        if spent + upcoming_usd > cap:
             raise BudgetExceeded(
-                f"LLM cap of ${self._limits.per_claim_usd:.2f} reached for claim {claim_id}"
+                f"this call could exceed the LLM cap of ${cap:.2f} for claim {claim_id}"
             )
 
     def charge(self, claim_id: str | None, usd: float) -> None:

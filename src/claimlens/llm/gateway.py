@@ -1,4 +1,8 @@
-"""The gateway: budget → cache → provider with retries → fallback → validation → charge and log."""
+"""The gateway: cache → budget → provider with retries → fallback → validation → charge and log.
+
+Every outcome is charged for what it cost and leaves one call record: ok, invalid_output,
+unavailable (all models down) or rejected (the provider refused the request).
+"""
 
 from __future__ import annotations
 
@@ -21,12 +25,28 @@ from claimlens.llm.provider import (
     ProviderReply,
     ProviderTransientError,
 )
-from claimlens.llm.types import InvalidModelOutput, LLMRequest, LLMResponse, LLMUnavailable, Message
+from claimlens.llm.types import (
+    InvalidModelOutput,
+    LLMError,
+    LLMRequest,
+    LLMResponse,
+    LLMUnavailable,
+    Message,
+)
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
+_CHARS_PER_TOKEN = 3  # a cautious estimate: real English text averages about 4
 
 
 def _extract_json(text: str) -> str:
+    """The JSON object in a reply: the whole text if it parses, else a fenced block, else braces."""
+    stripped = text.strip()
+    try:
+        json.loads(stripped)
+    except ValueError:
+        pass
+    else:
+        return stripped
     fenced = _FENCE.search(text)
     if fenced:
         return fenced.group(1).strip()
@@ -39,6 +59,16 @@ def _schema_system(system: str, schema: type[BaseModel]) -> str:
         f"{system}\n\nReply with only a JSON object (no prose) that matches this JSON Schema:\n"
         f"{json.dumps(schema.model_json_schema(), sort_keys=True)}"
     ).strip()
+
+
+class _FailedError(Exception):
+    """A provider call that did not produce a reply."""
+
+    def __init__(self, outcome: str, attempts: int, detail: str) -> None:
+        super().__init__(detail)
+        self.outcome = outcome
+        self.attempts = attempts
+        self.detail = detail
 
 
 class Gateway:
@@ -69,25 +99,32 @@ class Gateway:
             for attempt in range(self._config.limits.attempts_per_model):
                 attempts += 1
                 try:
-                    return (
-                        model,
-                        self._provider.complete(model, system, messages, max_tokens),
-                        attempts,
-                    )
+                    reply = self._provider.complete(model, system, messages, max_tokens)
                 except ProviderTransientError:
                     if attempt + 1 < self._config.limits.attempts_per_model:
                         self._sleep(self._config.limits.backoff_seconds * 2**attempt)
                 except ProviderFatalError as exc:
-                    raise LLMUnavailable(f"LLM request rejected: {exc}") from None
-        raise _AllDownError(attempts)
+                    # Another model would be refused the same way, so there is no fallback.
+                    raise _FailedError(
+                        "rejected", attempts, f"LLM request rejected: {exc}"
+                    ) from None
+                else:
+                    return model, reply, attempts
+        raise _FailedError(
+            "unavailable", attempts, "all LLM models are unavailable; route to a person"
+        )
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         started = self._clock()
         request_id = uuid.uuid4().hex
+        limits = self._config.limits
         schema = request.output_schema
         system = _schema_system(request.system, schema) if schema else request.system
-        max_tokens = request.max_tokens or self._config.limits.max_tokens
-        models = self._config.models_for(request.tier)
+        max_tokens = min(request.max_tokens or limits.max_tokens, limits.max_tokens_ceiling)
+        try:
+            models = self._config.models_for(request.tier)
+        except ValueError as exc:
+            raise LLMError(str(exc)) from None
         prompt_sha = hashlib.sha256(
             json.dumps([system, [m.model_dump() for m in request.messages]]).encode()
         ).hexdigest()
@@ -131,13 +168,27 @@ class Gateway:
                 attempts=0,
             )
 
-        self._budget.check(request.claim_id)
+        # Refuse before spending: the worst case is a full-length reply to this prompt.
+        prompt_chars = len(system) + sum(len(m.content) for m in request.messages)
+        worst_case = self._config.cost(models[0], prompt_chars // _CHARS_PER_TOKEN + 1, max_tokens)
+        self._budget.check(request.claim_id, worst_case)
+
         messages = list(request.messages)
+        tin = tout = attempts = 0
+        cost = 0.0
+        model = models[0]
+
+        def fail(failure: _FailedError) -> LLMUnavailable:
+            """Charge what was already spent, record the failure, and build the error."""
+            if cost:
+                self._budget.charge(request.claim_id, cost)
+            record(failure.outcome, model, tin, tout, cost, False, attempts + failure.attempts)
+            return LLMUnavailable(failure.detail)
+
         try:
             model, reply, attempts = self._call(models, system, messages, max_tokens)
-        except _AllDownError as down:
-            record("unavailable", models[-1], 0, 0, 0.0, False, down.attempts)
-            raise LLMUnavailable("all LLM models are unavailable; route to a person") from None
+        except _FailedError as failure:
+            raise fail(failure) from None
         tin, tout = reply.input_tokens, reply.output_tokens
         cost = self._config.cost(model, tin, tout)
         text = reply.text
@@ -148,7 +199,7 @@ class Gateway:
             except ValidationError as first_error:
                 repair = [
                     *messages,
-                    Message(role="assistant", content=text),
+                    Message(role="assistant", content=text or "(empty reply)"),
                     Message(
                         role="user",
                         content=(
@@ -159,12 +210,8 @@ class Gateway:
                 ]
                 try:
                     model, reply, more = self._call([model], system, repair, max_tokens)
-                except _AllDownError as down:
-                    self._budget.charge(request.claim_id, cost)
-                    record("unavailable", model, tin, tout, cost, False, attempts + down.attempts)
-                    raise LLMUnavailable(
-                        "LLM unavailable during repair; route to a person"
-                    ) from None
+                except _FailedError as failure:
+                    raise fail(failure) from None
                 attempts += more
                 tin, tout = tin + reply.input_tokens, tout + reply.output_tokens
                 cost += self._config.cost(model, reply.input_tokens, reply.output_tokens)
@@ -191,9 +238,3 @@ class Gateway:
             latency_ms=int((self._clock() - started) * 1000),
             attempts=attempts,
         )
-
-
-class _AllDownError(Exception):
-    def __init__(self, attempts: int) -> None:
-        super().__init__(attempts)
-        self.attempts = attempts

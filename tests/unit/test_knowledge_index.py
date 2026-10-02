@@ -83,3 +83,12 @@ def test_fake_embedder_is_deterministic_and_normalised() -> None:
 def test_unknown_wording_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="unknown wording"):
         _index(tmp_path).search("rental", wording="gold' OR 1=1 --")
+
+
+def test_index_built_with_another_embedder_is_refused(tmp_path: Path) -> None:
+    class Other(FakeEmbedder):
+        name = "another-embedder"
+
+    build_index(CLAUSES, FakeEmbedder(), tmp_path / "lancedb")
+    with pytest.raises(IndexMissingError, match="built with"):
+        PolicyIndex.open(tmp_path / "lancedb", Other())

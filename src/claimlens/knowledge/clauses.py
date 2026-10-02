@@ -9,6 +9,7 @@ from claimlens.domain import Frozen
 
 PREFIXES = {"basic": "BAS", "standard": "STD", "premium": "PRM"}
 _HEADING = re.compile(r"^###\s+([A-Z]{3}-\d+(?:\.\d+)?)\s+(.+?)\s*$")
+_ID_LIKE = re.compile(r"\b[A-Za-z]{3}-\d")
 
 
 class Clause(Frozen):
@@ -28,6 +29,8 @@ def parse_policy(path: Path) -> list[Clause]:
 
     def flush() -> None:
         if current is not None:
+            if not " ".join(body).strip():
+                raise ValueError(f"{path.name}: clause {current[0]} has no text")
             clauses.append(
                 Clause(
                     clause_id=current[0],
@@ -47,6 +50,8 @@ def parse_policy(path: Path) -> list[Clause]:
                     f"{path.name}: {clause_id} does not use the {PREFIXES[wording]} prefix"
                 )
             current, body = (clause_id, title), []
+        elif line.startswith("#") and _ID_LIKE.search(line):
+            raise ValueError(f"{path.name}: malformed clause heading: {line.strip()!r}")
         elif current is not None and line.strip() and not line.startswith("#"):
             body.append(line.strip())
     flush()

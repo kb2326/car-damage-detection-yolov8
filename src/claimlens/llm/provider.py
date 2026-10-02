@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -14,6 +15,15 @@ class ProviderReply:
     text: str
     input_tokens: int
     output_tokens: int
+
+
+def billable_input_tokens(
+    input_tokens: int, cache_creation: int | None, cache_read: int | None
+) -> int:
+    """Input-token equivalents: cache writes cost 1.25x and cache reads 0.1x the input price."""
+    return (
+        input_tokens + math.ceil(1.25 * (cache_creation or 0)) + math.ceil(0.1 * (cache_read or 0))
+    )
 
 
 class ProviderTransientError(Exception):

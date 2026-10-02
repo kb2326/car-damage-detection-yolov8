@@ -16,5 +16,6 @@ models = ["claude-haiku-4-5"]
 per_claim_usd = 0.03
 per_day_usd = 1.00
 max_tokens = 1024
+max_tokens_ceiling = 4096 # a request can never ask for more output than this
 attempts_per_model = 3
 backoff_seconds = 1.0

@@ -174,3 +174,108 @@ def test_prompts_are_versioned_files() -> None:
     assert len(prompt.sha256) == 64
     with pytest.raises(FileNotFoundError):
         load_prompt(ROOT / "prompts", "smoke", "v99")
+
+
+def test_rejected_calls_are_logged(tmp_path: Path) -> None:
+    gateway, _, calls = _gateway(tmp_path, [ProviderFatalError("BadRequestError: 400")])
+    with pytest.raises(LLMUnavailable):
+        gateway.generate(_ask(tier="strong", claim_id="c1"))
+    assert [c.outcome for c in calls] == ["rejected"]
+
+
+def test_rejected_repair_still_charges_the_first_call(tmp_path: Path) -> None:
+    script: list[ProviderReply | Exception] = [
+        ProviderReply("", 3000, 500),
+        ProviderFatalError("BadRequestError: 400"),
+    ]
+    fake = FakeProvider(script)
+    calls: list[LLMCall] = []
+    budget = Budget(tmp_path / "b.sqlite", CONFIG.limits, today=lambda: date(2026, 10, 2))
+    gateway = Gateway(
+        CONFIG,
+        fake,
+        budget,
+        ResponseCache(tmp_path / "c.sqlite"),
+        calls.append,
+        sleep=lambda s: None,
+    )
+    with pytest.raises(LLMUnavailable):
+        gateway.generate(_ask(tier="strong", claim_id="c1", output_schema=Verdict))
+    assert budget.spent_claim("c1") == pytest.approx(0.011)
+    assert calls[-1].outcome == "rejected"
+    assert calls[-1].cost_usd == pytest.approx(0.011)
+
+
+def test_a_call_that_could_overshoot_the_cap_is_refused(tmp_path: Path) -> None:
+    gateway, fake, _ = _gateway(tmp_path, [ProviderReply("x", 1, 1)])
+    huge = "word " * 60_000  # about 100k tokens of input: far more than $0.03 on Sonnet
+    with pytest.raises(BudgetExceeded, match="could exceed"):
+        gateway.generate(_ask(huge, tier="strong", claim_id="c1"))
+    assert fake.calls == []
+
+
+def test_max_tokens_is_clamped_to_the_ceiling(tmp_path: Path) -> None:
+    gateway, fake, _ = _gateway(tmp_path, [ProviderReply("x", 1, 1)])
+    gateway.generate(_ask(tier="fast", max_tokens=1_000_000))
+    assert fake.calls[0]["max_tokens"] == CONFIG.limits.max_tokens_ceiling
+
+
+def test_unknown_tier_is_a_gateway_error(tmp_path: Path) -> None:
+    from claimlens.llm.types import LLMError
+
+    gateway, _, _ = _gateway(tmp_path, [])
+    with pytest.raises(LLMError, match="unknown tier"):
+        gateway.generate(_ask(tier="genius"))
+
+
+def test_plain_json_with_fences_inside_a_string_is_parsed(tmp_path: Path) -> None:
+    reply = '{"route": "use ```a``` fences", "confidence": 0.5}'
+    gateway, fake, _ = _gateway(tmp_path, [ProviderReply(reply, 5, 5)])
+    response = gateway.generate(_ask(tier="fast", output_schema=Verdict))
+    assert response.parsed == Verdict(route="use ```a``` fences", confidence=0.5)
+    assert len(fake.calls) == 1
+
+
+def test_claim_calls_are_appended_to_the_claim_log(tmp_path: Path) -> None:
+    from uuid import uuid4
+
+    from claimlens.events.envelope import Actor, ActorKind
+    from claimlens.events.payloads import ClaimReported
+    from claimlens.events.store import SQLiteEventStore
+    from claimlens.llm.log import event_call_log
+
+    db = tmp_path / "claims.db"
+    store = SQLiteEventStore(db)
+    claim = uuid4()
+    store.append(
+        claim,
+        ClaimReported(policy_id="P-1001", description=""),
+        Actor(kind=ActorKind.SYSTEM, name="t"),
+    )
+    store.close()
+    plain: list[LLMCall] = []
+    gateway = Gateway(
+        CONFIG,
+        FakeProvider([ProviderReply("hi", 10, 2), ProviderReply("yo", 10, 2)]),
+        Budget(tmp_path / "b.sqlite", CONFIG.limits),
+        ResponseCache(tmp_path / "c.sqlite"),
+        event_call_log(db, plain.append),
+        sleep=lambda s: None,
+    )
+    gateway.generate(_ask(tier="fast", claim_id=str(claim)))
+    gateway.generate(_ask("other", tier="fast", claim_id="not-a-uuid"))
+    events = SQLiteEventStore(db).load(claim)
+    assert events[-1].type == "LLMCalled"
+    assert events[-1].payload["model"] == "claude-haiku-4-5"
+    assert len(plain) == 2
+
+
+def test_gateway_factory_needs_a_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from claimlens.llm.factory import build_gateway
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(LLMUnavailable, match="ANTHROPIC_API_KEY"):
+        build_gateway(ROOT / "config", tmp_path)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-not-real")
+    assert isinstance(build_gateway(ROOT / "config", tmp_path), Gateway)
