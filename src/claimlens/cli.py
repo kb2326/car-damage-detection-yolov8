@@ -22,7 +22,7 @@ from claimlens.data.pipeline import DataContractError, build_dataset
 from claimlens.data.records import read_records, write_records
 from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
-from claimlens.domain import Frozen
+from claimlens.domain import Frozen, Route
 from claimlens.evals.golden import load_golden, write_golden
 from claimlens.evals.metrics import compute_triage_metrics
 from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval, what_if_thresholds
@@ -199,6 +199,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify = sub.add_parser("verify", help="verify a claim's hash chain")
     verify.add_argument("claim_id", type=UUID)
 
+    approve = sub.add_parser("approve-payment", help="human step: sign a payment approval token")
+    approve.add_argument("claim_id", type=UUID)
+    approve.add_argument("amount", type=int, help="amount in whole US dollars")
+
     evaluate = sub.add_parser("eval-triage", help="score the pipeline on golden claims")
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
@@ -316,6 +320,8 @@ def _dispatch(
             return _run(args, store, detector_factory)
         if args.command == "resume":
             return _resume(args, store, detector_factory)
+        if args.command == "approve-payment":
+            return _approve_payment(args, store)
         return _inspect(args, store)
     finally:
         store.close()
@@ -349,6 +355,33 @@ def _resume(args: argparse.Namespace, store: SQLiteEventStore, factory: Detector
     deps = make_deps(store, BlobStore(args.blobs), args.config, _make_detector(args, factory))
     process_claim(args.claim_id, deps)
     print(format_summary(fold(store.load(args.claim_id))))
+    return 0
+
+
+def _approve_payment(args: argparse.Namespace, store: SQLiteEventStore) -> int:
+    from datetime import UTC, datetime
+
+    from claimlens.mcp.guard import issue_approval
+
+    try:
+        state = fold(store.load(args.claim_id))
+    except ClaimNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if state.decision is None:
+        print("error: the claim has no decision yet", file=sys.stderr)
+        return 1
+    if state.decision.route is Route.FRAUD_REVIEW:
+        print("error: claims routed to FRAUD_REVIEW cannot be approved here", file=sys.stderr)
+        return 1
+    if args.amount <= 0:
+        print("error: amount must be positive", file=sys.stderr)
+        return 1
+    secret = read_secret("CLAIMLENS_APPROVAL_SECRET")
+    if not secret:
+        print("error: set CLAIMLENS_APPROVAL_SECRET in .env", file=sys.stderr)
+        return 1
+    print(issue_approval(str(args.claim_id), args.amount, secret, now=datetime.now(UTC)))
     return 0
 
 
