@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
+from claimlens.data.records import ImageRecord
 from claimlens.decision import DecisionConfig, decide
 from claimlens.domain import (
     AgentRecommendation,
@@ -52,6 +53,30 @@ def findings_from_yolo_label(
                     y1=y1 * image_height,
                     x2=x2 * image_width,
                     y2=y2 * image_height,
+                ),
+                image_area_fraction=(x2 - x1) * (y2 - y1),
+            )
+        )
+    return findings
+
+
+def findings_from_record(record: ImageRecord, photo_id: str = "p1") -> list[DamageFinding]:
+    """Ground-truth findings from a canonical record: pixel box from each polygon's extents."""
+    findings: list[DamageFinding] = []
+    for annotation in record.annotations:
+        xs, ys = annotation.polygon[0::2], annotation.polygon[1::2]
+        x1, x2 = max(min(xs), 0.0), min(max(xs), 1.0)
+        y1, y2 = max(min(ys), 0.0), min(max(ys), 1.0)
+        findings.append(
+            DamageFinding(
+                photo_id=photo_id,
+                damage_type=normalize_class_name(annotation.label),
+                confidence=1.0,
+                bbox=BoundingBox(
+                    x1=x1 * record.width,
+                    y1=y1 * record.height,
+                    x2=x2 * record.width,
+                    y2=y2 * record.height,
                 ),
                 image_area_fraction=(x2 - x1) * (y2 - y1),
             )

@@ -1,0 +1,9 @@
+{
+ "counts": {
+  "approved": 133,
+  "images_all_rejected": 23,
+  "rejected": 322
+ },
+ "images": 77,
+ "job": "fusion-eval-v1"
+}

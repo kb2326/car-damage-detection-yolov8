@@ -1,0 +1,25 @@
+# Verified auto-labelling: part-group masks on frozen CarDD test photos (M2b).
+
+[fusion-eval-v1]
+dataset = "damage-v1"
+split = "test"
+sample_size = 100
+seed = 20261001
+box_threshold = 0.30
+text_threshold = 0.25
+min_score = 0.30  # equal to box_threshold today, so `low_score` never fires; raise it to filter harder
+max_per_group = 2
+detector = "IDEA-Research/grounding-dino-tiny"
+segmenter = "facebook/sam2.1-hiera-tiny"
+
+[fusion-eval-v1.prompts]
+"front bumper" = "front_bumper"
+"rear bumper" = "rear_bumper"
+"car door" = "door"
+"hood" = "hood"
+"trunk" = "trunk"
+"headlight" = "light"
+"taillight" = "light"
+"windshield" = "glass"
+"side mirror" = "mirror"
+"wheel" = "wheel"

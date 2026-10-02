@@ -44,18 +44,7 @@ LinkedIn only, as a single post after M8. Material is collected here as each mil
 |---|---|
 | M0 | Audit of the course project: every label the app showed was wrong (7-class model, 17-class list); val mAP50 0.137 |
 | M1 | Working end-to-end skeleton on day one; baseline route accuracy 0.78, escalation recall 1.00, 0 of 11 correct fast-tracks ("safe but not yet useful") |
-| M2 | Roboflow v6 turned out to be CarDD re-uploaded; dedupe found the same dent photo in train and valid under two ids (4 CarDD and 29 parts images moved) |
-
----|---|---|
-| 1/9 | M0 | I audited my own deep learning class project. Every label it showed was wrong. |
-| 2/9 | M1 | An ugly end-to-end system on day 10, and why that beats a perfect model |
-| 3/9 | M2 | Labelling thousands of images with foundation models |
-| 4/9 | M3 | From 0.137 mAP to a model I trust: what actually helped |
-| 5/9 | M4 | Turning my own models into MCP tools for an agent |
-| 6/9 | M5 | Why most of my AI claims adjuster is deliberately not an agent |
-| 7/9 | M6 | Agent memory an auditor can trust |
-| 8/9 | M7 | I tried to commit insurance fraud against my own AI |
-| 9/9 | M8 | Live demo, numbers, and everything I learned |
+| M2 | Roboflow v6 turned out to be CarDD re-uploaded; dedupe found the same dent photo in train and valid under two ids (4 CarDD and 29 parts images moved); foundation-model part labels: 133 of 455 proposals passed review, wheels and lights yes, doors and bumpers no; the CPU run overheated the laptop, so it moved to a free Kaggle GPU (1 minute for 100 images) |
 
 ---
 
@@ -107,11 +96,17 @@ something that already works.*
 - [x] Car-part dataset chosen (Roboflow `car-seg`, CC BY 4.0)
 - [x] `damage-v1` (4,000 images) and `parts-v1` (3,833 images) built; data card
 
-**M2b: review and labelling (next)**
+**M2b: review and labelling (done)**
 
-- [ ] FiftyOne visual review of both datasets
-- [ ] Grounding DINO + SAM 2 part masks on a damage subset (Colab), human-corrected fusion set
-- [ ] Golden claims v1: minor-damage cases from the frozen CarDD test split; drop duplicate `crashed454` copies
+- [x] FiftyOne review UI and `claimlens review launch | export | apply`
+- [x] Grounding DINO + SAM 2 part masks on 100 test images, run on a Kaggle GPU (ADR 0006)
+- [x] `fusion-eval-v1`: 133 of 455 part masks approved, 77 images (AI-reviewed, not human-verified)
+- [ ] **You:** spot-check `fusion-eval-v1` in FiftyOne (`uv run claimlens review launch parts`
+  opens with my decisions pre-tagged; swap the tag on any you disagree with, then `review export parts`)
+- [x] Golden claims v1: 97 cases, duplicates removed, 50 CarDD test cases added (30 fast-tracks)
+- [ ] **You:** review the golden claims (`uv run claimlens review launch golden`)
+- [x] Baseline v1: route accuracy 0.73, escalation recall 1.00, 4 of 30 correct fast-tracks
+- [x] Retro (`docs/retros/m2-data-engine.md`)
 - [ ] Optional: move the DVC remote to DagsHub
 
 ## M3 · Vision models (Nov 2–15)
@@ -140,6 +135,7 @@ something that already works.*
 *Add the reasoning assistant, then measure it like a product.*
 
 - [ ] Agent loop with step, cost and time limits
+- [ ] Bake-off: our own loop vs LangGraph behind the same interface, on the golden set (ADR 0007)
 - [ ] Human review queue and approval tokens
 - [ ] 150 golden claims
 - [ ] LLM judge, checked against 50 of your own labels

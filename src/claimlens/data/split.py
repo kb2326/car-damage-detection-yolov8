@@ -13,17 +13,18 @@ def assign_splits(
     clusters: Mapping[str, int],
     protected_clusters: Set[int],
 ) -> dict[str, str]:
-    """Test wins over valid, valid over train; protected clusters are excluded entirely."""
+    """Test wins over everything; protected clusters leave train and valid; valid wins over train."""
     source_splits: dict[int, set[str]] = defaultdict(set)
     for record in records:
         source_splits[clusters[record.image_id]].add(record.source_split)
 
     def target(cluster: int) -> str:
-        if cluster in protected_clusters:
-            return "excluded"
         splits = source_splits[cluster]
         if "test" in splits:
+            # The frozen benchmark split is never altered, even next to a golden photo.
             return "test"
+        if cluster in protected_clusters:
+            return "excluded"
         if "valid" in splits:
             return "valid"
         return "train"

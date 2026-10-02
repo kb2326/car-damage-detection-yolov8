@@ -20,6 +20,7 @@ claimlens = "claimlens.cli:main"
 dev = [
   "dvc>=3.50",
   "mypy>=1.11",
+  "opencv-python-headless>=4.9",
   "pre-commit>=3.8",
   "pytest>=8.3",
   "pytest-cov>=5.0",
@@ -28,6 +29,15 @@ dev = [
 ]
 vision = [
   "ultralytics>=8.3,<9",
+]
+autolabel = [
+  "opencv-python-headless>=4.9",
+  "torch>=2.4",
+  "torchvision>=0.19",
+  "transformers>=5.0",
+]
+review = [
+  "fiftyone>=1.0",
 ]
 
 [build-system]
@@ -59,8 +69,17 @@ module = ["ultralytics", "ultralytics.*", "imagehash", "imagehash.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
+[[tool.mypy.overrides]]
+module = ["cv2", "cv2.*", "torch", "torch.*", "transformers", "transformers.*", "fiftyone", "fiftyone.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
 [tool.coverage.run]
-omit = ["*/claimlens/vision/legacy_yolo.py"]
+omit = [
+  "*/claimlens/vision/legacy_yolo.py",
+  "*/claimlens/autolabel/grounded_sam.py",
+  "*/claimlens/review/fiftyone_app.py",
+]
 
 # ---------- Pytest ----------
 [tool.pytest.ini_options]
