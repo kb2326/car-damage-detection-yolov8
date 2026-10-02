@@ -4,9 +4,32 @@
 for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
 of every consequential decision.
 
-> Status: **M1 – Walking skeleton** (in progress). This repository started as a STAT 5350 course
-> project (a YOLOv8 car-damage detector). See [`legacy/README.md`](legacy/README.md) for the
-> original code and the audit that motivated the rebuild.
+> Status: **M0–M4 complete** (foundations, walking skeleton, data engine, vision models, tools).
+> Next: **M5, the LLM triage agent.** This repository started as a STAT 5350 course project (a
+> YOLOv8 car-damage detector). See [`legacy/README.md`](legacy/README.md) for the original code and
+> the audit that motivated the rebuild.
+
+## Where it stands
+
+| Area | What is built | Result |
+|---|---|---|
+| Claim pipeline | Event-sourced, resumable workflow; rules R1–R9; no route can deny | 410 tests, 96% coverage |
+| Data | `damage-v1` (4,000 CarDD images) and `parts-v1` (3,833 images), versioned with DVC | 0 contract errors; 33 near-duplicate images moved so no group spans two splits |
+| Damage model | YOLO11s-seg, trained on a free Kaggle GPU | Test mask mAP50 **0.733** (course model: validation mAP50 0.137) |
+| Part model | YOLO11n-seg, 22 part classes | Test mask mAP50 **0.746** |
+| Fusion | Which part each damage is on, and its share of that part | 88% of golden findings get a part |
+| Calibration | Temperature scaling; the confidence threshold comes from evidence | T = 0.80; threshold 0.65 |
+| Golden set (97 claims) | Full system at threshold 0.65 | Route accuracy **0.78**, escalation recall **1.00**, 9 of 30 correct fast-tracks |
+| Tools (MCP) | 4 servers with per-agent scopes; payments need a human-signed, single-use token | Usable from Claude Code |
+| LLM gateway | Tiers, retries, fallback, cache; caps of $0.03 per claim and $1 per day | Two live test calls cost $0.0006 in total |
+| Policy search | 56 fictional clauses, LanceDB hybrid search, citation check | recall@5 **1.00** on 10 questions (a small corpus, so a generous bar) |
+
+Escalation recall is the safety gate: every claim that needs a person must reach one. It has
+stayed at 1.00 through every model change, and it caught a design mistake before it shipped (see
+[`docs/retros/m3-vision-models.md`](docs/retros/m3-vision-models.md)).
+
+More detail: [model card](docs/model-card.md) · [data card](docs/data-card.md) ·
+[decision records](docs/adr/) · [roadmap](docs/roadmap.md) · [evaluation reports](evals/reports/).
 
 ## Why
 
@@ -27,7 +50,9 @@ human with the evidence already assembled.**
 ## How a claim moves
 
 Fixed code handles every predictable step. The LLM is used only where judgment is needed, and its
-advice passes through deterministic rules before any routing decision.
+advice passes through deterministic rules before any routing decision. The diagram shows the target
+design. Today the triage agent is a rule-based stub (the LLM agent arrives in M5), and the intake
+agent, PII blur, EXIF and synthetic-image checks are planned for M6 and M7.
 
 ```mermaid
 flowchart LR
@@ -42,7 +67,8 @@ flowchart LR
 
     IA --> Q
     PR -->|evidence| TA[Triage agent<br/>reasons, cites]
-    TA <-->|tool calls| T[(MCP tools<br/>policy, history, skills)]
+    TA <-->|tool calls| T[(MCP tools<br/>vision, policy, claims)]
+    TA <-->|model calls| G[LLM gateway<br/>caps, cache, log]
     TA -->|advice| D{Decision policy<br/>rules override agent}
     D -->|R9| FT[FAST_TRACK]
     D -->|R2-R8| AR[ADJUSTER_REVIEW]
@@ -54,7 +80,7 @@ flowchart LR
     classDef human fill:#e2f2ee,stroke:#2a7a69,color:#15202b
     classDef fraud fill:#f8e3e3,stroke:#b03838,color:#15202b
     class IA,TA llm
-    class Q,P,I,PR,D,AR,T det
+    class Q,P,I,PR,D,AR,T,G det
     class C,H,FT human
     class FR fraud
 ```
@@ -126,29 +152,42 @@ gantt
     axisFormat %b %d
     section Platform
     M0 Foundations          :done,   m0, 2026-10-01, 2026-10-07
-    M1 Walking skeleton     :active, m1, 2026-10-08, 2026-10-18
+    M1 Walking skeleton     :done,   m1, 2026-10-08, 2026-10-18
     section Data and vision
-    M2 Data engine          :m2, 2026-10-19, 2026-11-01
-    M3 Vision models        :m3, 2026-11-02, 2026-11-15
+    M2 Data engine          :done,   m2, 2026-10-19, 2026-11-01
+    M3 Vision models        :done,   m3, 2026-11-02, 2026-11-15
     section Agents
-    M4 Tools and MCP        :m4, 2026-11-16, 2026-11-26
-    M5 Triage agent         :m5, 2026-11-27, 2026-12-10
+    M4 Tools and MCP        :done,   m4, 2026-11-16, 2026-11-26
+    M5 Triage agent         :active, m5, 2026-11-27, 2026-12-10
     M6 Intake and memory    :m6, 2026-12-11, 2026-12-24
     section Trust and ship
     M7 Trust and governance :m7, 2026-12-25, 2027-01-04
     M8 Ship                 :m8, 2027-01-05, 2027-01-15
 ```
 
+The chart shows the planned dates. M0 to M4 were finished ahead of them.
+
 ## Repository layout
 
 ```
-src/claimlens/      Python package (domain code)
-tests/              unit / integration tests and fixtures
-training/           data and training pipelines (from M2)
-evals/              golden claims, eval harness, reports (from M1)
-docs/               PR/FAQ, ADRs, specs, cards, learning notes
+src/claimlens/      Python package
+  events/           append-only, hash-chained claim log and state fold
+  data/             dataset pipeline: taxonomy, contract, dedupe, splits
+  vision/           damage and part models (fusion.py joins them)
+  training/         training runs, MLflow import, champion selection, calibration
+  mcp/              MCP tool servers, profiles (scopes), guard, audit
+  llm/              LLM gateway: tiers, retries, cache, cost caps, call log
+  knowledge/        policy wording parser and LanceDB hybrid search
+config/             rules, rate card, taxonomy, training runs, agent profiles, LLM tiers
+knowledge/policies/ fictional policy wordings (basic, standard, premium)
+prompts/            versioned prompt files
+tests/              unit and integration tests, fixtures
+training/           Kaggle GPU jobs
+evals/              golden claims, policy-search questions, evaluation reports
+reviews/            label review decisions, versioned as data
+docs/               PR/FAQ, specs, plans, ADRs 0001-0012, data card, model card, retros
 data/               datasets — versioned with DVC, not git (see data/README.md)
-models/             model weights — not in git (see models/README.md)
+models/             model weights — private, not in git (see models/README.md)
 legacy/             the original course project, frozen for comparison
 ```
 
@@ -161,13 +200,29 @@ uv sync                          # Python 3.12 environment with dev tools
 uv run pre-commit install        # lint and format checks on every commit
 uv run pytest                    # tests (no data, weights or API keys needed)
 
-# Run a claim end to end with the legacy baseline model
-uv sync --group vision           # adds Ultralytics (large download)
+# Search the policy wording (downloads a small embedding model once)
+uv sync --group knowledge
+uv run claimlens knowledge build
+uv run claimlens knowledge search "is a rental car covered after a collision?" --policy P-1001
+
+# Run a claim end to end (needs model weights, see below)
+uv sync --group vision --group knowledge   # adds Ultralytics (large download)
 uv run claimlens run --policy P-1001 --description "Scraped a pole" tests/fixtures/images/dent_1.jpg
 uv run claimlens show <claim-id>     # decision and audit trail
 uv run claimlens verify <claim-id>   # check the hash chain
 uv run claimlens resume <claim-id>   # finish a claim that was interrupted
 ```
+
+`claimlens run` takes `--detector legacy|yolo-seg|fused`. `fused` is the full system (damage
+model + part model).
+
+**Model weights are private.** The models are trained on CarDD, which allows non-commercial
+research use and does not allow redistribution, so the weights are not in this repository
+(ADR 0004, ADR 0008). The tests, the policy search and the MCP policy and claims tools work
+without them.
+
+**LLM calls** go through the gateway and need `ANTHROPIC_API_KEY` in a git-ignored `.env`. The
+test suite never calls the API unless you set `CLAIMLENS_LIVE=1`.
 
 ## Use ClaimLens from Claude Code (MCP)
 
@@ -200,12 +255,12 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 
 | Milestone | Focus |
 |---|---|
-| M0 | Foundations: repo, tooling, CI, ADRs, legacy audit |
-| M1 | Walking skeleton: event-sourced claim state, thin end-to-end pipeline, golden claims |
-| M2 | Data engine: CarDD + foundation-model auto-labelling, DVC, FiftyOne |
-| M3 | Vision models: damage + part instance segmentation, calibration, model card |
-| M4 | Tools & integration: MCP servers, LLM gateway, policy RAG |
-| M5 | Triage agent: human-in-the-loop, LLM evals, CI gates, tracing |
+| M0 ✅ | Foundations: repo, tooling, CI, ADRs, legacy audit |
+| M1 ✅ | Walking skeleton: event-sourced claim state, thin end-to-end pipeline, golden claims |
+| M2 ✅ | Data engine: CarDD + foundation-model auto-labelling, DVC, FiftyOne |
+| M3 ✅ | Vision models: damage + part instance segmentation, fusion, calibration, model card |
+| M4 ✅ | Tools & integration: MCP servers with scopes, LLM gateway, policy search with citations |
+| M5 (next) | Triage agent: human-in-the-loop, LLM evals, CI gates, tracing |
 | M6 | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
 | M7 | Trust & governance: OWASP agentic threat model, red-team, fraud, PII, AIS program |
 | M8 | Ship: ONNX, Docker, public demo, monitoring |
