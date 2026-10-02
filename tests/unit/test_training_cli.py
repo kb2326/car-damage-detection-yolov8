@@ -221,3 +221,47 @@ def test_calibrate_with_no_predictions_is_a_clear_error(
     )
     assert code == 1
     assert "no matched predictions" in capsys.readouterr().err
+
+
+class _EmptySegmenter:
+    model_version = "fake"
+
+    def segment(self, image_path: Path) -> Segmentation:
+        return Segmentation(instances=(), width=1, height=1)
+
+
+def test_train_export_and_onnx_benchmark(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from claimlens.training.manifest import ModelReport, write_json
+    from tests.unit.test_training_select import _report
+
+    write_json(
+        tmp_path / "reports" / "models" / "p1.json",
+        _report("p1", 0.6, 0.5).model_copy(update={"task": "parts", "dataset": "parts-v1"}),
+    )
+    weights = tmp_path / "models" / "parts" / "p1" / "best.pt"
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"pt")
+    test_dir = tmp_path / "data" / "processed" / "parts-v1" / "images" / "test"
+    test_dir.mkdir(parents=True)
+    for i in range(3):
+        (test_dir / f"{i}.jpg").write_bytes(b"x")
+
+    def fake_export(path: Path) -> Path:
+        out = path.parent / "exported.onnx"
+        out.write_bytes(b"onnx")
+        return out
+
+    seen: list[Path] = []
+
+    def factory(path: Path, name: str) -> _EmptySegmenter:
+        seen.append(path)
+        return _EmptySegmenter()
+
+    monkeypatch.chdir(tmp_path)
+    assert main(["train", "export", "p1"], exporter=fake_export) == 0
+    assert (tmp_path / "models" / "parts" / "p1" / "best.onnx").read_bytes() == b"onnx"
+    assert main(["train", "benchmark", "p1", "--format", "onnx"], segmenter_factory=factory) == 0
+    assert seen[-1].name == "best.onnx"
+    report = read_json(tmp_path / "reports" / "models" / "p1.json", ModelReport)
+    assert report.cpu_ms_per_image_onnx is not None
+    assert report.cpu_ms_per_image == 120.0  # the .pt timing is left unchanged

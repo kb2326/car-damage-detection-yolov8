@@ -28,6 +28,8 @@ dev = [
   "types-pyyaml>=6.0",
 ]
 vision = [
+  "onnx>=1.16",
+  "onnxruntime>=1.20",
   "ultralytics>=8.3,<9",
 ]
 autolabel = [

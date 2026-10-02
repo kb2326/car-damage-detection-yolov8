@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -18,6 +19,7 @@ from claimlens.vision.instances import Segmenter
 TrainerFactory = Callable[[], Trainer]
 DetectorFactory = Callable[[str, Path], Detector]
 SegmenterFactory = Callable[[Path, str], Segmenter]
+ExporterFactory = Callable[[Path], Path]
 
 
 class BundleInfo(Frozen):
@@ -51,6 +53,9 @@ def add_train_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     bench = train_sub.add_parser("benchmark", help="median CPU ms per image on test photos")
     bench.add_argument("run")
     bench.add_argument("--images", type=int, default=20)
+    bench.add_argument("--format", choices=["pt", "onnx"], default="pt")
+    export = train_sub.add_parser("export", help="export a run's weights to ONNX")
+    export.add_argument("run")
 
 
 def _git_commit() -> str:
@@ -149,19 +154,35 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
-def _benchmark(args: argparse.Namespace, detector_factory: DetectorFactory) -> int:
-    from claimlens.training.benchmark import benchmark_detector
-    from claimlens.training.manifest import ModelReport, read_json, write_json
+def _benchmark(args: argparse.Namespace, segmenter_factory: SegmenterFactory) -> int:
+    from claimlens.training.benchmark import benchmark_callable
+    from claimlens.training.manifest import ModelReport, write_json
 
     repo_root = Path.cwd()
     report_path = repo_root / "reports" / "models" / f"{args.run}.json"
     report = read_json(report_path, ModelReport)
     test_dir = repo_root / "data" / "processed" / report.dataset / "images" / "test"
     images = sorted(test_dir.glob("*.jpg"))[: args.images]
-    detector = detector_factory("yolo-seg", repo_root / "models" / "damage" / args.run / "best.pt")
-    ms = benchmark_detector(detector, images)
-    write_json(report_path, report.model_copy(update={"cpu_ms_per_image": round(ms, 1)}))
-    print(f"{args.run}: median {ms:.0f} ms per image on CPU over {len(images)} images")
+    weights = repo_root / "models" / report.task / args.run / f"best.{args.format}"
+    segmenter = segmenter_factory(weights, args.run)
+    ms = round(benchmark_callable(segmenter.segment, images), 1)
+    field = "cpu_ms_per_image_onnx" if args.format == "onnx" else "cpu_ms_per_image"
+    write_json(report_path, report.model_copy(update={field: ms}))
+    print(f"{args.run} ({args.format}): median {ms:.0f} ms per image on CPU over {len(images)}")
+    return 0
+
+
+def _export(args: argparse.Namespace, exporter: ExporterFactory) -> int:
+    from claimlens.training.manifest import ModelReport
+
+    repo_root = Path.cwd()
+    report = read_json(repo_root / "reports" / "models" / f"{args.run}.json", ModelReport)
+    weights = repo_root / "models" / report.task / args.run / "best.pt"
+    exported = exporter(weights)
+    target = weights.with_suffix(".onnx")
+    if exported.resolve() != target.resolve():
+        shutil.move(str(exported), target)
+    print(f"Exported {args.run} to {target}")
     return 0
 
 
@@ -237,6 +258,7 @@ def run_train_command(
     trainer_factory: TrainerFactory,
     detector_factory: DetectorFactory,
     segmenter_factory: SegmenterFactory,
+    exporter: ExporterFactory,
 ) -> int:
     try:
         if args.train_command == "run":
@@ -250,7 +272,9 @@ def run_train_command(
         if args.train_command == "calibrate":
             return _calibrate(args, segmenter_factory)
         if args.train_command == "benchmark":
-            return _benchmark(args, detector_factory)
+            return _benchmark(args, segmenter_factory)
+        if args.train_command == "export":
+            return _export(args, exporter)
         raise ValueError(f"unknown train command {args.train_command!r}")
     except Exception as exc:
         from claimlens.training.tracking import TrainingUnavailableError

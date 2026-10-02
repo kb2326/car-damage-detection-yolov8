@@ -42,6 +42,7 @@ from claimlens.review.decisions import (
     write_review,
 )
 from claimlens.training.commands import (
+    ExporterFactory,
     SegmenterFactory,
     TrainerFactory,
     add_train_parser,
@@ -93,6 +94,12 @@ def _ultralytics_segmenter(weights: Path, name: str) -> Segmenter:
     from claimlens.vision.ultralytics_segmenter import UltralyticsSegmenter
 
     return UltralyticsSegmenter(weights, name=name)
+
+
+def _export_onnx(weights: Path) -> Path:
+    from claimlens.vision.ultralytics_segmenter import export_onnx
+
+    return export_onnx(weights)
 
 
 def _ultralytics_trainer() -> Trainer:
@@ -209,6 +216,7 @@ def main(
     labeller_factory: LabellerFactory = _grounded_sam,
     trainer_factory: TrainerFactory = _ultralytics_trainer,
     segmenter_factory: SegmenterFactory = _ultralytics_segmenter,
+    exporter: ExporterFactory = _export_onnx,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "eval-triage":
@@ -223,6 +231,7 @@ def main(
             trainer_factory=trainer_factory,
             detector_factory=detector_factory,
             segmenter_factory=segmenter_factory,
+            exporter=exporter,
         )
     store = SQLiteEventStore(args.db)
     try:
