@@ -97,3 +97,17 @@ def test_bundle_for_another_dataset_is_refused(
     monkeypatch.chdir(tmp_path)
     assert _train(tmp_path) == 1
     assert "parts-v1" in capsys.readouterr().err
+
+
+def test_train_import_reports_the_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pytest.importorskip("mlflow")
+    from tests.training_helpers import make_run_dir
+
+    run_dir = make_run_dir(tmp_path, name="damage-yolo11n-v1")
+    monkeypatch.chdir(tmp_path)
+    assert main(["train", "import", "damage-yolo11n-v1", "--from", str(run_dir)]) == 0
+    assert "as 1" in capsys.readouterr().out
+    assert (tmp_path / "models" / "damage" / "damage-yolo11n-v1" / "best.pt").is_file()
+    assert (tmp_path / "reports" / "models" / "damage-yolo11n-v1.json").is_file()

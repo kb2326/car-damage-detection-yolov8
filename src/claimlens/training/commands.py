@@ -32,6 +32,12 @@ def add_train_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     run.add_argument("--bundle", type=Path, required=True, help="dataset.json from the bundle")
     run.add_argument("--out", type=Path, default=Path("var/runs"))
     run.add_argument("--commit", default=None, help="defaults to `git rev-parse HEAD`")
+    imp = train_sub.add_parser("import", help="log a finished run into the local MLflow logbook")
+    imp.add_argument("run")
+    imp.add_argument(
+        "--from", dest="source", type=Path, required=True, help="downloaded run folder"
+    )
+    imp.add_argument("--allow-incomplete", action="store_true")
 
 
 def _git_commit() -> str:
@@ -68,6 +74,27 @@ def _run(args: argparse.Namespace, trainer_factory: TrainerFactory) -> int:
     return 0
 
 
+def _import(args: argparse.Namespace) -> int:
+    from claimlens.training.tracking import default_tracking, import_run
+
+    repo_root = Path.cwd()
+    tracking_uri, artifact_root = default_tracking(repo_root)
+    report = import_run(
+        args.source,
+        run_name=args.run,
+        tracking_uri=tracking_uri,
+        artifact_root=artifact_root,
+        models_dir=repo_root / "models" / "damage",
+        reports_dir=repo_root / "reports" / "models",
+        allow_incomplete=args.allow_incomplete,
+    )
+    print(
+        f"Imported {report.run} as {report.model_version}: "
+        f"val mask mAP50 {report.val.mask_map50:.3f}, test {report.test.mask_map50:.3f}"
+    )
+    return 0
+
+
 def run_train_command(
     args: argparse.Namespace,
     *,
@@ -77,7 +104,16 @@ def run_train_command(
     try:
         if args.train_command == "run":
             return _run(args, trainer_factory)
+        if args.train_command == "import":
+            return _import(args)
         raise ValueError(f"unknown train command {args.train_command!r}")
-    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
+    except Exception as exc:
+        from claimlens.training.tracking import TrainingUnavailableError
+
+        if isinstance(exc, TrainingUnavailableError):
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if isinstance(exc, OSError | ValueError | subprocess.CalledProcessError):
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        raise
