@@ -22,6 +22,7 @@ from claimlens.events.payloads import (
     CostEstimated,
     DamageDetected,
     IntegrityChecked,
+    LLMCalled,
     NoteAdded,
     Payload,
     PaymentIssued,
@@ -133,7 +134,7 @@ def _apply(state: ClaimState, event: ClaimEvent, payload: Payload) -> None:
             state.queue = payload.queue
         case PaymentIssued():
             state.payments.append(payload.payment_id)
-        case ToolCalled():
+        case ToolCalled() | LLMCalled():
             pass
         case ClaimReported():
             raise ValueError("ClaimReported may only be the first event of a claim")
