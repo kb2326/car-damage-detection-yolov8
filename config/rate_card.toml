@@ -1,11 +1,16 @@
 # Fictional USD repair ranges [low, high] for a learning project. Not real market prices.
-version = "rate-card-2026.10-v0"
+version = "rate-card-2026.10-v1"
 
 [severity]
 # Damage box area as a fraction of the image.
 # Below minor_max is minor, below moderate_max is moderate, otherwise severe.
 minor_max_fraction = 0.05
 moderate_max_fraction = 0.20
+
+[part_severity]
+# Used when fusion knows the part: damage area as a fraction of that part's area (M3b, ADR 0009).
+minor_max_ratio = 0.10
+moderate_max_ratio = 0.30
 
 [rates.crack]
 minor = [200, 500]
