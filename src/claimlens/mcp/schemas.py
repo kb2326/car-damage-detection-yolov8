@@ -83,3 +83,15 @@ class PaymentResult(BaseModel):
     payment_id: str
     event_seq: int
     duplicate: bool
+
+
+class ClauseOut(BaseModel):
+    clause_id: str
+    title: str
+    text: str
+    score: float
+
+
+class ClauseResults(BaseModel):
+    wording: str | None
+    clauses: list[ClauseOut]

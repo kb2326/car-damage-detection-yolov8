@@ -6,6 +6,7 @@ from typing import Any
 
 from claimlens.data.config import read_secret
 from claimlens.data.taxonomy import load_part_groups
+from claimlens.knowledge.index import PolicyIndex
 from claimlens.mcp.base import ScopedServer, jsonl_audit
 from claimlens.mcp.claims_system import build_claims_system, event_audit
 from claimlens.mcp.payments import build_payments
@@ -17,6 +18,7 @@ from claimlens.pricing import load_rate_card
 from claimlens.quality import QualityConfig
 
 PHOTO_ROOTS = (Path("var/blobs"), Path("data"), Path("tests/fixtures"))
+INDEX_PATH = Path("var/lancedb")
 
 
 def _profile(name: str, config_dir: Path) -> Profile:
@@ -50,7 +52,18 @@ def build_server(
         )
         return build_vision(profile, deps, fallback)
     if name == "policy-admin":
-        return build_policy_admin(profile, load_policies(config_dir / "policies.toml"), fallback)
+        cache: list[PolicyIndex] = []
+
+        def index() -> PolicyIndex:
+            if not cache:  # the embedding model loads on the first search, not at start-up
+                from claimlens.knowledge.fastembedder import FastEmbedder
+
+                cache.append(PolicyIndex.open(INDEX_PATH, FastEmbedder()))
+            return cache[0]
+
+        return build_policy_admin(
+            profile, load_policies(config_dir / "policies.toml"), fallback, index
+        )
     if name == "claims-system":
         return build_claims_system(profile, db_path, event_audit(db_path, fallback))
     if name == "payments":

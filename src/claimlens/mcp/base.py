@@ -14,6 +14,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from claimlens.domain import Frozen
 from claimlens.events.store import ClaimNotFoundError
+from claimlens.knowledge.index import IndexMissingError
 from claimlens.mcp.guard import GuardError, ScopeDenied
 from claimlens.mcp.profiles import Profile
 
@@ -44,7 +45,13 @@ def tool_errors() -> Iterator[None]:
     """Turn ClaimLens refusals into MCP error results with a readable message."""
     try:
         yield
-    except (GuardError, ClaimNotFoundError, FileNotFoundError, ValueError) as exc:
+    except (
+        GuardError,
+        ClaimNotFoundError,
+        IndexMissingError,
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
         raise ToolError(str(exc)) from exc
 
 
