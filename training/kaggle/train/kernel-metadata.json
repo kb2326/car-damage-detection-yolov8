@@ -1,0 +1,13 @@
+{
+  "id": "karthickbalaje/claimlens-train-damage-v1",
+  "title": "claimlens-train-damage-v1",
+  "code_file": "run_train.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": ["karthickbalaje/claimlens-damage-v1"],
+  "competition_sources": [],
+  "kernel_sources": []
+}

@@ -8,9 +8,11 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from claimlens.decision import DecisionConfig, decide
 from claimlens.domain import Route
 from claimlens.evals.golden import GoldenClaim
-from claimlens.evals.metrics import TriageMetrics
+from claimlens.evals.metrics import TriageMetrics, compute_triage_metrics
+from claimlens.events.projection import ClaimState, fold
 from claimlens.intake import submit_claim
 from claimlens.workflow import PipelineDeps, process_claim
 
@@ -24,6 +26,7 @@ class CaseResult:
     rule_id: str = ""
     reason: str = ""
     error: str = ""
+    state: ClaimState | None = None
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,7 @@ def run_case(case: GoldenClaim, deps: PipelineDeps, repo_root: Path) -> CaseResu
         predicted=decision.route,
         rule_id=decision.rule_id,
         reason=decision.reason,
+        state=fold(deps.store.load(claim_id)),
     )
 
 
@@ -93,11 +97,27 @@ def run_triage_eval(
     return results
 
 
+def what_if_thresholds(
+    results: Sequence[CaseResult], config: DecisionConfig, thresholds: Sequence[float]
+) -> list[tuple[float, TriageMetrics]]:
+    """Re-decide each finished claim at other confidence thresholds. Agent output is held fixed."""
+    table: list[tuple[float, TriageMetrics]] = []
+    for threshold in thresholds:
+        variant = config.model_copy(update={"min_finding_confidence": threshold})
+        pairs = [
+            (r.expected, decide(r.state, variant).route if r.state is not None else None)
+            for r in results
+        ]
+        table.append((threshold, compute_triage_metrics(pairs)))
+    return table
+
+
 def render_report(
     cases: Sequence[GoldenClaim],
     results: Sequence[CaseResult],
     metrics: TriageMetrics,
     meta: ReportMeta,
+    what_if: Sequence[tuple[float, TriageMetrics]] = (),
 ) -> str:
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     reviewed = sum(case.reviewed for case in cases)
@@ -150,5 +170,22 @@ def render_report(
             lines.append(
                 f"| {r.case_id} | {r.scenario} | {r.expected.value} | {predicted} "
                 f"| {r.rule_id or '-'} | {reason} |"
+            )
+    if what_if:
+        lines += [
+            "",
+            "## What if: other confidence thresholds (R6)",
+            "",
+            "Policy unchanged; each claim is re-decided from its final state.",
+            "",
+            "| Min confidence | Route accuracy | Escalation recall | Correct fast-tracks |",
+            "|---|---|---|---|",
+        ]
+        for threshold, m in what_if:
+            rec = "n/a" if m.escalation_recall is None else f"{m.escalation_recall:.2f}"
+            fast = m.confusion.get((Route.FAST_TRACK, Route.FAST_TRACK), 0)
+            expected_fast = sum(v for (e, _), v in m.confusion.items() if e is Route.FAST_TRACK)
+            lines.append(
+                f"| {threshold:.2f} | {m.route_accuracy:.2f} | {rec} | {fast} of {expected_fast} |"
             )
     return "\n".join(lines) + "\n"

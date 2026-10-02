@@ -23,7 +23,7 @@ from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
 from claimlens.evals.golden import load_golden, write_golden
 from claimlens.evals.metrics import compute_triage_metrics
-from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval
+from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval, what_if_thresholds
 from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
@@ -41,18 +41,66 @@ from claimlens.review.decisions import (
     read_review,
     write_review,
 )
+from claimlens.training.commands import TrainerFactory, add_train_parser, run_train_command
+from claimlens.training.run import Trainer
+from claimlens.training.select import load_models_config
 from claimlens.vision.base import Detector
 from claimlens.workflow import PipelineDeps, process_claim
 
 DEFAULT_WEIGHTS = Path("models/legacy/yolov8n-cardamage-v6.pt")
-DetectorFactory = Callable[[Path], Detector]
+DetectorFactory = Callable[[str, Path], Detector]
 LabellerFactory = Callable[[AutolabelJob], PartLabeller]
 
 
-def _legacy_detector(weights: Path) -> Detector:
+def _default_detector(kind: str, weights: Path) -> Detector:
+    if kind == "yolo-seg":
+        from claimlens.vision.yolo_seg import YoloSegDetector
+
+        return YoloSegDetector(weights, run=weights.parent.name)
     from claimlens.vision.legacy_yolo import LegacyYoloDetector
 
     return LegacyYoloDetector(weights)
+
+
+def resolve_detector(
+    detector: str | None, weights: Path | None, config_dir: Path
+) -> tuple[str, Path]:
+    """Explicit flags win; otherwise the champion in config/models.toml; otherwise legacy."""
+    models = load_models_config(config_dir / "models.toml")
+    if detector is None and weights is not None:
+        return "legacy", weights  # the pre-M3 meaning of --weights
+    kind = detector or ("yolo-seg" if models is not None else "legacy")
+    if weights is not None:
+        return kind, weights
+    if kind == "legacy":
+        return kind, DEFAULT_WEIGHTS
+    if models is None:
+        raise ValueError("no champion model: run `claimlens train select` or pass --weights")
+    return kind, Path(models.damage.weights)
+
+
+def _thresholds(text: str) -> list[float]:
+    try:
+        values = [float(t) for t in text.split(",") if t.strip()]
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a list of numbers: {text!r}") from None
+    if any(not 0.0 <= v <= 1.0 for v in values):
+        raise argparse.ArgumentTypeError("thresholds must be between 0 and 1")
+    return values
+
+
+def _make_detector(args: argparse.Namespace, factory: DetectorFactory) -> Detector:
+    try:
+        kind, weights = resolve_detector(args.detector, args.weights, args.config)
+        return factory(kind, weights)
+    except (ValueError, FileNotFoundError) as exc:
+        raise DetectorUnavailableError(str(exc)) from exc
+
+
+def _ultralytics_trainer() -> Trainer:
+    from claimlens.training.ultralytics_trainer import UltralyticsTrainer
+
+    return UltralyticsTrainer()
 
 
 def _grounded_sam(job: AutolabelJob) -> PartLabeller:
@@ -74,7 +122,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--db", type=Path, default=Path("var/claimlens.db"))
     parser.add_argument("--blobs", type=Path, default=Path("var/blobs"))
     parser.add_argument("--config", type=Path, default=Path("config"))
-    parser.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS)
+    parser.add_argument("--weights", type=Path, default=None)
+    parser.add_argument("--detector", choices=["legacy", "yolo-seg"], default=None)
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="submit a claim and process it")
@@ -94,6 +143,12 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = sub.add_parser("eval-triage", help="score the pipeline on golden claims")
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
+    evaluate.add_argument(
+        "--what-if",
+        type=_thresholds,
+        default=[],
+        help="comma-separated confidence thresholds, e.g. 0.25,0.40,0.55",
+    )
 
     data = sub.add_parser("data", help="fetch and build datasets")
     data_sub = data.add_subparsers(dest="data_command", required=True)
@@ -110,6 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--job", default="fusion-eval-v1", help="auto-label job id")
     review.add_argument("--golden", type=Path, default=Path("evals/golden/v1/claims.jsonl"))
     review.add_argument("--reviewer", default="reviewer")
+    add_train_parser(sub)
     return parser
 
 
@@ -154,16 +210,40 @@ def format_audit_trail(events: Sequence[ClaimEvent]) -> str:
 def main(
     argv: Sequence[str] | None = None,
     *,
-    detector_factory: DetectorFactory = _legacy_detector,
+    detector_factory: DetectorFactory = _default_detector,
     labeller_factory: LabellerFactory = _grounded_sam,
+    trainer_factory: TrainerFactory = _ultralytics_trainer,
 ) -> int:
     args = build_parser().parse_args(argv)
+    try:
+        return _dispatch(args, detector_factory, labeller_factory, trainer_factory)
+    except DetectorUnavailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+class DetectorUnavailableError(RuntimeError):
+    pass
+
+
+def _dispatch(
+    args: argparse.Namespace,
+    detector_factory: DetectorFactory,
+    labeller_factory: LabellerFactory,
+    trainer_factory: TrainerFactory,
+) -> int:
     if args.command == "eval-triage":
         return _eval_triage(args, detector_factory)
     if args.command == "data":
         return _data(args, labeller_factory)
     if args.command == "review":
         return _review(args)
+    if args.command == "train":
+        return run_train_command(
+            args,
+            trainer_factory=trainer_factory,
+            detector_factory=detector_factory,
+        )
     store = SQLiteEventStore(args.db)
     try:
         if args.command == "run":
@@ -177,7 +257,7 @@ def main(
 
 def _run(args: argparse.Namespace, store: SQLiteEventStore, factory: DetectorFactory) -> int:
     blobs = BlobStore(args.blobs)
-    deps = make_deps(store, blobs, args.config, factory(args.weights))
+    deps = make_deps(store, blobs, args.config, _make_detector(args, factory))
     claim_id = submit_claim(
         store, blobs, policy_id=args.policy, description=args.description, photo_paths=args.photos
     )
@@ -200,7 +280,7 @@ def _resume(args: argparse.Namespace, store: SQLiteEventStore, factory: Detector
     except ChainIntegrityError as exc:
         print(f"error: audit log failed verification: {exc}", file=sys.stderr)
         return 1
-    deps = make_deps(store, BlobStore(args.blobs), args.config, factory(args.weights))
+    deps = make_deps(store, BlobStore(args.blobs), args.config, _make_detector(args, factory))
     process_claim(args.claim_id, deps)
     print(format_summary(fold(store.load(args.claim_id))))
     return 0
@@ -225,7 +305,7 @@ def _inspect(args: argparse.Namespace, store: SQLiteEventStore) -> int:
 
 def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     cases = load_golden(args.golden)
-    detector = factory(args.weights)
+    detector = _make_detector(args, factory)
 
     def make(case_dir: Path) -> PipelineDeps:
         store = SQLiteEventStore(case_dir / "claims.db")
@@ -234,15 +314,19 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     with tempfile.TemporaryDirectory() as workdir:
         results = run_triage_eval(cases, make, repo_root=Path.cwd(), workdir=Path(workdir))
     metrics = compute_triage_metrics([(r.expected, r.predicted) for r in results])
+    thresholds: list[float] = args.what_if
+    decision_config = load_decision_config(args.config / "decision_policy.toml")
+    what_if = what_if_thresholds(results, decision_config, thresholds)
     meta = ReportMeta(
         golden_path=args.golden.as_posix(),
         model_version=detector.model_version,
         agent_version=StubTriageAgent.agent_version,
-        decision_policy_version=load_decision_config(args.config / "decision_policy.toml").version,
+        decision_policy_version=decision_config.version,
         generated_on=date.today(),
     )
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(render_report(cases, results, metrics, meta), encoding="utf-8")
+    report = render_report(cases, results, metrics, meta, what_if=what_if)
+    args.report.write_text(report, encoding="utf-8")
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     print(
         f"Cases: {metrics.total}  Route accuracy: {metrics.route_accuracy:.2f}  "

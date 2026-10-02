@@ -39,6 +39,9 @@ autolabel = [
 review = [
   "fiftyone>=1.0",
 ]
+training = [
+  "mlflow>=3.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -65,7 +68,7 @@ files = ["src", "tests", "scripts"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["ultralytics", "ultralytics.*", "imagehash", "imagehash.*"]
+module = ["ultralytics", "ultralytics.*", "imagehash", "imagehash.*", "mlflow", "mlflow.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
@@ -79,6 +82,8 @@ omit = [
   "*/claimlens/vision/legacy_yolo.py",
   "*/claimlens/autolabel/grounded_sam.py",
   "*/claimlens/review/fiftyone_app.py",
+  "*/claimlens/training/ultralytics_trainer.py",
+  "*/claimlens/vision/yolo_seg.py",
 ]
 
 # ---------- Pytest ----------

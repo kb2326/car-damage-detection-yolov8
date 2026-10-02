@@ -12,7 +12,7 @@ from tests.fakes import CONFIG_DIR, FakeDetector, SimulatedCrashError
 def _cli(tmp_path: Path, *args: str, detector: FakeDetector | None = None) -> int:
     base = ["--db", str(tmp_path / "claims.db"), "--blobs", str(tmp_path / "blobs")]
     chosen = detector or FakeDetector()
-    return main([*base, "--config", str(CONFIG_DIR), *args], detector_factory=lambda _: chosen)
+    return main([*base, "--config", str(CONFIG_DIR), *args], detector_factory=lambda *_: chosen)
 
 
 def _run_claim(
@@ -86,3 +86,35 @@ def test_resume_finishes_a_claim_that_crashed_mid_run(
     out = capsys.readouterr().out
     assert f"Claim: {claim_id}" in out
     assert "Route: FAST_TRACK (R9)" in out
+
+
+def test_missing_champion_weights_are_a_clear_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def missing(kind: str, weights: Path) -> FakeDetector:
+        raise FileNotFoundError(f"model weights not found: {weights}")
+
+    golden = tmp_path / "claims.jsonl"
+    golden.write_text("", encoding="utf-8")
+    code = main(
+        [
+            "--config",
+            str(CONFIG_DIR),
+            "eval-triage",
+            "--golden",
+            str(golden),
+            "--report",
+            str(tmp_path / "r.md"),
+        ],
+        detector_factory=missing,
+    )
+    assert code == 1
+    assert "model weights not found" in capsys.readouterr().err
+
+
+def test_bad_what_if_value_is_a_usage_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit):
+        main(["eval-triage", "--golden", "g.jsonl", "--report", "r.md", "--what-if", "abc"])
+    assert "--what-if" in capsys.readouterr().err

@@ -1,0 +1,5 @@
+# Written by `claimlens train select`. The pipeline uses this damage model by default.
+[damage]
+run = "damage-yolo11s-v1"
+weights = "models/damage/damage-yolo11s-v1/best.pt"
+mlflow_version = "2"

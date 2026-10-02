@@ -1,0 +1,17 @@
+# Training runs for `claimlens train run <name>` (spec docs/specs/2026-10-02-m3a-damage-model-design.md).
+# Each [runs.<name>] table overrides [defaults].
+
+[defaults]
+dataset = "damage-v1"
+epochs = 100
+patience = 20 # stop after 20 epochs without validation improvement
+imgsz = 640
+batch = 16
+seed = 20261002
+workers = 2
+
+[runs.damage-yolo11n-v1]
+model = "yolo11n-seg.pt"
+
+[runs.damage-yolo11s-v1]
+model = "yolo11s-seg.pt"
