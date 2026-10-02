@@ -5,6 +5,7 @@ import pytest
 
 from claimlens.cli import main
 from claimlens.training.manifest import RunManifest, read_json
+from claimlens.vision.instances import SegInstance, Segmentation
 from tests.fakes import CONFIG_DIR
 from tests.training_helpers import FakeTrainer
 
@@ -143,3 +144,80 @@ def test_train_report_without_a_champion_is_an_error(
     code = main(["--config", str(tmp_path / "config"), "train", "report", "--out", "r.md"])
     assert code == 1
     assert "train select" in capsys.readouterr().err
+
+
+SQUARE = (0.1, 0.1, 0.4, 0.1, 0.4, 0.4, 0.1, 0.4)
+
+
+class _CalibrationSegmenter:
+    model_version = "fake"
+
+    def segment(self, image_path: Path) -> Segmentation:
+        hit = SegInstance(label="dent", confidence=0.9, box_xyxy=(0, 0, 1, 1), polygon_xyn=SQUARE)
+        miss = SegInstance(
+            label="dent",
+            confidence=0.6,
+            box_xyxy=(0, 0, 1, 1),
+            polygon_xyn=(0.6, 0.6, 0.9, 0.6, 0.9, 0.9),
+        )
+        return Segmentation(instances=(hit, miss), width=10, height=10)
+
+
+def test_train_calibrate_writes_temperature(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    from claimlens.training.manifest import write_json
+    from claimlens.training.select import (
+        champion_from_report,
+        load_models_config,
+        update_models_config,
+    )
+    from tests.unit.test_training_select import _report
+
+    config = tmp_path / "config"
+    shutil.copytree(CONFIG_DIR, config)
+    (config / "models.toml").unlink(missing_ok=True)
+    write_json(tmp_path / "reports" / "models" / "d1.json", _report("d1", 0.6, 0.5))
+    dataset = tmp_path / "data" / "processed" / "damage-v1"
+    (dataset / "images" / "val").mkdir(parents=True)
+    (dataset / "labels" / "val").mkdir(parents=True)
+    (dataset / "data.yaml").write_text("names:\n  0: dent\n", encoding="utf-8")
+    for i in range(4):
+        (dataset / "images" / "val" / f"{i}.jpg").write_bytes(b"x")
+        (dataset / "labels" / "val" / f"{i}.txt").write_text(
+            "0 " + " ".join(map(str, SQUARE)) + "\n", encoding="utf-8"
+        )
+    update_models_config(
+        config / "models.toml", "damage", champion_from_report(_report("d1", 0.6, 0.5))
+    )
+    monkeypatch.chdir(tmp_path)
+    code = main(
+        ["--config", str(config), "train", "calibrate", "d1"],
+        segmenter_factory=lambda weights, name: _CalibrationSegmenter(),
+    )
+    assert code == 0
+    models = load_models_config(config / "models.toml")
+    assert models is not None
+    assert models.damage is not None
+    assert models.damage.temperature is not None
+    assert (tmp_path / "reports" / "models" / "calibration" / "d1.json").is_file()
+
+
+def test_calibrate_with_no_predictions_is_a_clear_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from claimlens.training.manifest import write_json
+    from tests.unit.test_training_select import _report
+
+    write_json(tmp_path / "reports" / "models" / "d1.json", _report("d1", 0.6, 0.5))
+    dataset = tmp_path / "data" / "processed" / "damage-v1"
+    (dataset / "images" / "val").mkdir(parents=True)
+    (dataset / "data.yaml").write_text("names:\n  0: dent\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    code = main(
+        ["train", "calibrate", "d1"], segmenter_factory=lambda w, n: _CalibrationSegmenter()
+    )
+    assert code == 1
+    assert "no matched predictions" in capsys.readouterr().err

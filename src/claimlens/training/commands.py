@@ -13,9 +13,11 @@ from claimlens.training.config import dvc_out_md5, load_training_runs
 from claimlens.training.manifest import read_json
 from claimlens.training.run import Trainer, run_training
 from claimlens.vision.base import Detector
+from claimlens.vision.instances import Segmenter
 
 TrainerFactory = Callable[[], Trainer]
 DetectorFactory = Callable[[str, Path], Detector]
+SegmenterFactory = Callable[[Path, str], Segmenter]
 
 
 class BundleInfo(Frozen):
@@ -43,6 +45,9 @@ def add_train_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     report = train_sub.add_parser("report", help="write a model report")
     report.add_argument("--out", type=Path, required=True)
     report.add_argument("--task", choices=["damage", "parts"], default="damage")
+    cal = train_sub.add_parser("calibrate", help="fit a temperature on validation predictions")
+    cal.add_argument("run")
+    cal.add_argument("--limit", type=int, default=0, help="use only the first N images (0 = all)")
     bench = train_sub.add_parser("benchmark", help="median CPU ms per image on test photos")
     bench.add_argument("run")
     bench.add_argument("--images", type=int, default=20)
@@ -160,11 +165,78 @@ def _benchmark(args: argparse.Namespace, detector_factory: DetectorFactory) -> i
     return 0
 
 
+def _calibrate(args: argparse.Namespace, segmenter_factory: SegmenterFactory) -> int:
+    import yaml
+
+    from claimlens.fusion import calibrate_confidence
+    from claimlens.training.calibration import (
+        CalibrationResult,
+        ece,
+        fit_temperature,
+        match_predictions,
+        read_yolo_labels,
+        recommend_threshold,
+    )
+    from claimlens.training.manifest import ModelReport, write_json
+    from claimlens.training.select import load_models_config, update_models_config
+
+    repo_root = Path.cwd()
+    report = read_json(repo_root / "reports" / "models" / f"{args.run}.json", ModelReport)
+    dataset = repo_root / "data" / "processed" / report.dataset
+    data_yaml = yaml.safe_load((dataset / "data.yaml").read_text(encoding="utf-8"))
+    names = {int(key): str(value) for key, value in data_yaml["names"].items()}
+    images = sorted((dataset / "images" / "val").glob("*.jpg"))
+    if args.limit:
+        images = images[: args.limit]
+    weights = repo_root / "models" / report.task / args.run / "best.pt"
+    segmenter = segmenter_factory(weights, args.run)
+    pairs: list[tuple[float, bool]] = []
+    for image in images:
+        label_file = dataset / "labels" / "val" / f"{image.stem}.txt"
+        truths = read_yolo_labels(label_file, names) if label_file.is_file() else []
+        pairs += match_predictions(segmenter.segment(image).instances, truths)
+    temperature = fit_temperature(pairs)
+    threshold = recommend_threshold(pairs, temperature)
+    kept = (
+        []
+        if threshold is None
+        else [c for p, c in pairs if calibrate_confidence(p, temperature) >= threshold]
+    )
+    result = CalibrationResult(
+        run=args.run,
+        images=len(images),
+        predictions=len(pairs),
+        correct=sum(c for _, c in pairs),
+        temperature=temperature,
+        ece_before=round(ece(pairs), 4),
+        ece_after=round(ece(pairs, temperature=temperature), 4),
+        recommended_threshold=threshold,
+        precision_at_threshold=round(sum(kept) / len(kept), 4) if kept else None,
+        kept_at_threshold=len(kept),
+    )
+    write_json(repo_root / "reports" / "models" / "calibration" / f"{args.run}.json", result)
+    models = load_models_config(args.config / "models.toml")
+    if models is not None and models.damage is not None and models.damage.run == args.run:
+        update_models_config(
+            args.config / "models.toml",
+            "damage",
+            models.damage.model_copy(
+                update={"temperature": temperature, "recommended_threshold": threshold}
+            ),
+        )
+    print(
+        f"{args.run}: T={temperature:.2f}, ECE {result.ece_before:.3f} -> "
+        f"{result.ece_after:.3f}, recommended threshold {threshold}"
+    )
+    return 0
+
+
 def run_train_command(
     args: argparse.Namespace,
     *,
     trainer_factory: TrainerFactory,
     detector_factory: DetectorFactory,
+    segmenter_factory: SegmenterFactory,
 ) -> int:
     try:
         if args.train_command == "run":
@@ -175,6 +247,8 @@ def run_train_command(
             return _select(args)
         if args.train_command == "report":
             return _report(args)
+        if args.train_command == "calibrate":
+            return _calibrate(args, segmenter_factory)
         if args.train_command == "benchmark":
             return _benchmark(args, detector_factory)
         raise ValueError(f"unknown train command {args.train_command!r}")

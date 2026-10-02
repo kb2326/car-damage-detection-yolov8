@@ -41,10 +41,16 @@ from claimlens.review.decisions import (
     read_review,
     write_review,
 )
-from claimlens.training.commands import TrainerFactory, add_train_parser, run_train_command
+from claimlens.training.commands import (
+    SegmenterFactory,
+    TrainerFactory,
+    add_train_parser,
+    run_train_command,
+)
 from claimlens.training.run import Trainer
 from claimlens.training.select import load_models_config
 from claimlens.vision.base import Detector
+from claimlens.vision.instances import Segmenter
 from claimlens.workflow import PipelineDeps, process_claim
 
 DEFAULT_WEIGHTS = Path("models/legacy/yolov8n-cardamage-v6.pt")
@@ -81,6 +87,12 @@ def resolve_detector(
 def _make_detector(args: argparse.Namespace, factory: DetectorFactory) -> Detector:
     kind, weights = resolve_detector(args.detector, args.weights, args.config)
     return factory(kind, weights)
+
+
+def _ultralytics_segmenter(weights: Path, name: str) -> Segmenter:
+    from claimlens.vision.ultralytics_segmenter import UltralyticsSegmenter
+
+    return UltralyticsSegmenter(weights, name=name)
 
 
 def _ultralytics_trainer() -> Trainer:
@@ -196,6 +208,7 @@ def main(
     detector_factory: DetectorFactory = _default_detector,
     labeller_factory: LabellerFactory = _grounded_sam,
     trainer_factory: TrainerFactory = _ultralytics_trainer,
+    segmenter_factory: SegmenterFactory = _ultralytics_segmenter,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "eval-triage":
@@ -209,6 +222,7 @@ def main(
             args,
             trainer_factory=trainer_factory,
             detector_factory=detector_factory,
+            segmenter_factory=segmenter_factory,
         )
     store = SQLiteEventStore(args.db)
     try:
