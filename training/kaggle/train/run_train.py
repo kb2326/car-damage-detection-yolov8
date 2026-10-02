@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO = "https://github.com/kb2326/claimlens.git"
 # The exact commit this job runs: the pushed commit that contains the training code.
-COMMIT = "SET-IN-TASK-9"
+COMMIT = "378aca2f6f951fc46f6ccddf8243571cb604597e"
 RUNS = ("damage-yolo11n-v1", "damage-yolo11s-v1")
 WORK = Path("/tmp/claimlens")
 OUT = Path("/kaggle/working")
