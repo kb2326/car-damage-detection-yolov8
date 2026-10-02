@@ -1,0 +1,17 @@
+# Which MCP tools each agent profile may see and call (spec docs/specs/2026-10-02-m4a-mcp-tools-design.md).
+# No profile may list issue_payment: only the built-in human `operator` profile can reach payments,
+# and every payment still needs a signed approval token.
+
+[profiles.intake]
+vision = ["assess_quality"]
+policy-admin = ["get_policy"]
+
+[profiles.triage]
+vision = ["segment_damage", "segment_parts", "assess_quality"]
+policy-admin = ["get_policy", "get_coverage"]
+claims-system = ["get_claim_history", "find_similar_claims", "add_note", "assign_queue"]
+
+[profiles.demo]
+vision = ["segment_damage", "segment_parts", "assess_quality"]
+policy-admin = ["get_policy", "get_coverage"]
+claims-system = ["get_claim_history", "find_similar_claims"]
