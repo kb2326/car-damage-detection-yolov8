@@ -1,6 +1,6 @@
-"""Kaggle job: train the M3a damage models on a free Kaggle GPU.
+"""Kaggle job: train the M3b part model on a free Kaggle GPU (same flow as ../train).
 
-Pushed with `kaggle kernels push -p .` from this folder. It reads the private `claimlens-damage-v1`
+Pushed with `kaggle kernels push -p .` from this folder. It reads the private `claimlens-parts-v1`
 dataset, checks out the pinned commit, installs the locked `vision` group with uv, and runs
 `claimlens train run` for each run. Results go straight to /kaggle/working/<run>/ so they survive
 a time-out, and are downloaded with `kaggle kernels output`.
@@ -16,9 +16,9 @@ from pathlib import Path
 
 REPO = "https://github.com/kb2326/claimlens.git"
 # The exact commit this job runs: the pushed commit that contains the training code.
-COMMIT = "378aca2f6f951fc46f6ccddf8243571cb604597e"
-DATASET = "damage-v1"
-RUNS = ("damage-yolo11n-v1", "damage-yolo11s-v1")
+COMMIT = "7b97f54cbc59987f8f2b5a3cb187904f858a81ce"
+DATASET = "parts-v1"
+RUNS = ("parts-yolo11n-v1",)
 WORK = Path("/tmp/claimlens")
 OUT = Path("/kaggle/working")
 INPUT = Path("/kaggle/input")

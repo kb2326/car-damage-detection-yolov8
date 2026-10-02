@@ -5,7 +5,7 @@ from uuid import UUID
 
 import pytest
 
-from claimlens.cli import main
+from claimlens.cli import DetectorSpec, main
 from tests.fakes import CONFIG_DIR, FakeDetector, SimulatedCrashError
 
 
@@ -91,8 +91,8 @@ def test_resume_finishes_a_claim_that_crashed_mid_run(
 def test_missing_champion_weights_are_a_clear_error(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def missing(kind: str, weights: Path) -> FakeDetector:
-        raise FileNotFoundError(f"model weights not found: {weights}")
+    def missing(spec: DetectorSpec) -> FakeDetector:
+        raise FileNotFoundError(f"model weights not found: {spec.weights}")
 
     golden = tmp_path / "claims.jsonl"
     golden.write_text("", encoding="utf-8")

@@ -1,5 +1,6 @@
 {
  "run": "damage-yolo11s-v1",
+ "task": "damage",
  "base_model": "yolo11s-seg.pt",
  "commit": "378aca2f6f951fc46f6ccddf8243571cb604597e",
  "dataset": "damage-v1",
@@ -37,5 +38,6 @@
  },
  "mlflow_run_id": "4c692899ccbf4c4a826db10118e705b2",
  "model_version": "2",
- "cpu_ms_per_image": 309.5
+ "cpu_ms_per_image": 357.2,
+ "cpu_ms_per_image_onnx": 674.4
 }

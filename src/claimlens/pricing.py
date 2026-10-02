@@ -14,11 +14,25 @@ from claimlens.domain import CostEstimate, DamageFinding, DamageType, Frozen, Se
 _SEVERITY_ORDER = {Severity.MINOR: 0, Severity.MODERATE: 1, Severity.SEVERE: 2}
 
 
+class PartBands(Frozen):
+    """Severity from damage area / part area, used when fusion knows the part."""
+
+    minor_max_ratio: float = Field(gt=0.0)
+    moderate_max_ratio: float = Field(gt=0.0)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        if self.minor_max_ratio >= self.moderate_max_ratio:
+            raise ValueError("minor_max_ratio must be below moderate_max_ratio")
+        return self
+
+
 class RateCard(Frozen):
     version: str
     minor_max_fraction: float = Field(gt=0.0, lt=1.0)
     moderate_max_fraction: float = Field(gt=0.0, lt=1.0)
     rates: dict[DamageType, dict[Severity, tuple[int, int]]]
+    part_bands: PartBands | None = None
 
     @model_validator(mode="after")
     def _complete(self) -> Self:
@@ -37,7 +51,12 @@ class RateCard(Frozen):
 def load_rate_card(path: Path) -> RateCard:
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     return RateCard.model_validate(
-        {"version": data["version"], **data["severity"], "rates": data["rates"]}
+        {
+            "version": data["version"],
+            **data["severity"],
+            "rates": data["rates"],
+            "part_bands": data.get("part_severity"),
+        }
     )
 
 
@@ -49,10 +68,22 @@ def severity_for(fraction: float, card: RateCard) -> Severity:
     return Severity.SEVERE
 
 
+def severity_of(finding: DamageFinding, card: RateCard) -> Severity:
+    """Part ratio when the part is known and the card has part bands; else the image fraction."""
+    bands = card.part_bands
+    if bands is not None and finding.part is not None and finding.part_area_ratio is not None:
+        if finding.part_area_ratio < bands.minor_max_ratio:
+            return Severity.MINOR
+        if finding.part_area_ratio < bands.moderate_max_ratio:
+            return Severity.MODERATE
+        return Severity.SEVERE
+    return severity_for(finding.image_area_fraction, card)
+
+
 def estimate_cost(findings: Sequence[DamageFinding], card: RateCard) -> CostEstimate:
     worst: dict[DamageType, Severity] = {}
     for finding in findings:
-        severity = severity_for(finding.image_area_fraction, card)
+        severity = severity_of(finding, card)
         current = worst.get(finding.damage_type)
         if current is None or _SEVERITY_ORDER[severity] > _SEVERITY_ORDER[current]:
             worst[finding.damage_type] = severity

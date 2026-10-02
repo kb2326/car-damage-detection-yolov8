@@ -1,0 +1,12 @@
+{
+ "run": "damage-yolo11s-v1",
+ "images": 814,
+ "predictions": 3083,
+ "correct": 1258,
+ "temperature": 0.8,
+ "ece_before": 0.0592,
+ "ece_after": 0.0397,
+ "recommended_threshold": 0.65,
+ "precision_at_threshold": 0.8202,
+ "kept_at_threshold": 1018
+}

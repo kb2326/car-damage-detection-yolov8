@@ -50,9 +50,10 @@ class FakeTrainer:
         )
 
 
-def make_run(name: str = "r1", model: str = "yolo11n-seg.pt") -> TrainingRun:
+def make_run(name: str = "r1", model: str = "yolo11n-seg.pt", task: str = "damage") -> TrainingRun:
     return TrainingRun(
         name=name,
+        task=task,
         model=model,
         dataset="damage-v1",
         epochs=3,
@@ -64,12 +65,14 @@ def make_run(name: str = "r1", model: str = "yolo11n-seg.pt") -> TrainingRun:
     )
 
 
-def make_run_dir(tmp_path: Path, *, name: str = "r1", fail: bool = False) -> Path:
+def make_run_dir(
+    tmp_path: Path, *, name: str = "r1", fail: bool = False, task: str = "damage"
+) -> Path:
     dataset = tmp_path / "dataset"
     dataset.mkdir(exist_ok=True)
     (dataset / "data.yaml").write_text("names: {0: dent}\n", encoding="utf-8")
     run_training(
-        make_run(name),
+        make_run(name, task=task),
         dataset_dir=dataset,
         bundle_md5="abc.dir",
         expected_md5="abc.dir",

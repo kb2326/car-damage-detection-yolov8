@@ -1,0 +1,6 @@
+outs:
+- md5: 9a0a494eff61279391663c25d4310049.dir
+  size: 17615928
+  nfiles: 2
+  hash: md5
+  path: parts

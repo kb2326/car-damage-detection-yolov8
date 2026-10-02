@@ -1,4 +1,4 @@
-"""Choose the champion damage model on validation and describe every candidate."""
+"""Choose the champion model per task on validation and describe every candidate."""
 
 from __future__ import annotations
 
@@ -15,14 +15,26 @@ class ChampionModel(Frozen):
     run: str
     weights: str
     mlflow_version: str
+    temperature: float | None = None
+    recommended_threshold: float | None = None
 
 
 class ModelsConfig(Frozen):
-    damage: ChampionModel
+    damage: ChampionModel | None = None
+    parts: ChampionModel | None = None
 
 
-def load_model_reports(reports_dir: Path) -> list[ModelReport]:
-    return [read_json(path, ModelReport) for path in sorted(reports_dir.glob("*.json"))]
+def load_model_reports(reports_dir: Path, task: str | None = None) -> list[ModelReport]:
+    reports = [read_json(path, ModelReport) for path in sorted(reports_dir.glob("*.json"))]
+    return [r for r in reports if task is None or r.task == task]
+
+
+def champion_from_report(report: ModelReport) -> ChampionModel:
+    return ChampionModel(
+        run=report.run,
+        weights=f"models/{report.task}/{report.run}/best.pt",
+        mlflow_version=report.model_version,
+    )
 
 
 def select_champion(reports: Sequence[ModelReport]) -> ModelReport:
@@ -33,23 +45,42 @@ def select_champion(reports: Sequence[ModelReport]) -> ModelReport:
     return max(complete, key=lambda r: (r.val.mask_map50, r.val.mask_map50_95, r.run))
 
 
-def write_models_config(path: Path, champion: ModelReport) -> ModelsConfig:
-    config = ModelsConfig(
-        damage=ChampionModel(
-            run=champion.run,
-            weights=f"models/damage/{champion.run}/best.pt",
-            mlflow_version=champion.model_version,
-        )
+def keep_calibration(new: ChampionModel, current: ChampionModel | None) -> ChampionModel:
+    """Re-selecting the same run keeps its calibration; a different run starts uncalibrated."""
+    if current is None or current.run != new.run:
+        return new
+    return new.model_copy(
+        update={
+            "temperature": current.temperature,
+            "recommended_threshold": current.recommended_threshold,
+        }
     )
-    path.write_text(
-        "# Written by `claimlens train select`. The pipeline uses this damage model by default.\n"
-        "[damage]\n"
-        f'run = "{config.damage.run}"\n'
-        f'weights = "{config.damage.weights}"\n'
-        f'mlflow_version = "{config.damage.mlflow_version}"\n',
-        encoding="utf-8",
-        newline="\n",
-    )
+
+
+def _section(task: str, champion: ChampionModel) -> list[str]:
+    lines = [
+        f"[{task}]",
+        f'run = "{champion.run}"',
+        f'weights = "{champion.weights}"',
+        f'mlflow_version = "{champion.mlflow_version}"',
+    ]
+    if champion.temperature is not None:
+        lines.append(f"temperature = {champion.temperature}")
+    if champion.recommended_threshold is not None:
+        lines.append(f"recommended_threshold = {champion.recommended_threshold}")
+    return lines
+
+
+def update_models_config(path: Path, task: str, champion: ChampionModel) -> ModelsConfig:
+    """Set one task's champion; the other task's section is kept."""
+    current = load_models_config(path) or ModelsConfig()
+    config = current.model_copy(update={task: champion})
+    lines = ["# Written by `claimlens train select` and `train calibrate`. The pipeline defaults."]
+    for name in ("damage", "parts"):
+        section: ChampionModel | None = getattr(config, name)
+        if section is not None:
+            lines += ["", *_section(name, section)]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     return config
 
 
@@ -67,7 +98,8 @@ def render_model_report(
     reports: Sequence[ModelReport], champion: ModelReport, generated_on: date
 ) -> str:
     lines = [
-        "# Damage model v1: YOLO11-seg on damage-v1",
+        f"# {'Damage' if champion.task == 'damage' else 'Part'} model v1: "
+        f"YOLO11-seg on {champion.dataset}",
         "",
         f"- Date: {generated_on.isoformat()}",
         f"- Dataset: `{champion.dataset}` (md5 `{champion.dataset_md5}`)",

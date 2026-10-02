@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import Field
@@ -14,6 +14,7 @@ from claimlens.domain import Frozen
 
 class TrainingRun(Frozen):
     name: str
+    task: Literal["damage", "parts"] = "damage"
     model: str
     dataset: str
     epochs: int = Field(gt=0)

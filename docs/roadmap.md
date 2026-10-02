@@ -46,6 +46,7 @@ LinkedIn only, as a single post after M8. Material is collected here as each mil
 | M1 | Working end-to-end skeleton on day one; baseline route accuracy 0.78, escalation recall 1.00, 0 of 11 correct fast-tracks ("safe but not yet useful") |
 | M2 | Roboflow v6 turned out to be CarDD re-uploaded; dedupe found the same dent photo in train and valid under two ids (4 CarDD and 29 parts images moved); foundation-model part labels: 133 of 455 proposals passed review, wheels and lights yes, doors and bumpers no; the CPU run overheated the laptop, so it moved to a free Kaggle GPU (1 minute for 100 images) |
 | M3a | Trained two YOLO11-seg damage models on a free Kaggle GPU (test mask mAP50 0.733, up from the course model's 0.137); golden fast-tracks 4 to 11 of 30; the safety gate caught my own design mistake (outline vs box sizing) before it shipped |
+| M3b | Part model plus fusion: "dent on rear bumper, 6% of the part"; calibration showed my model was slightly under-confident (T 0.80); ONNX turned out slower than PyTorch on a laptop CPU; the safety gate caught the same sizing mistake a second time in a new code path |
 
 ---
 
@@ -122,14 +123,18 @@ something that already works.*
 - [x] Golden v1 with our model: route accuracy 0.80, escalation recall 1.00, 11 of 30 correct fast-tracks
 - [x] Gate caught a design mistake: sizing damage by its outline broke safety (0.97); pricing by box, as the rate card defines, restored 1.00
 
-**M3b: parts, fusion, calibration (in progress)**
+**M3b: parts, fusion, calibration (done)**
 
-- [ ] Part segmentation model
-- [ ] Fusion: which damage is on which part, and how big it is
-- [ ] Calibrate confidence scores; recommend threshold τ (owner decides)
-- [ ] ONNX export
-- [ ] Model card (target: mask mAP50 ≥ 0.50)
-- [ ] Stretch: RT-DETR comparison
+- [x] Part segmentation model `parts-yolo11n-v1`: test mask mAP50 0.746 (22 classes)
+- [x] Fusion: which damage is on which part, and how big it is (88% of golden findings get a part)
+- [x] Part-ratio severity (rate card v1), box fallback (ADR 0009)
+- [x] Calibrate confidence: T = 0.80, ECE 0.059 to 0.040; recommended R6 threshold 0.65
+- [ ] **You:** decide on the R6 threshold (0.65 costs 2 of 11 golden fast-tracks); a change is a separate PR
+- [x] ONNX export (slower than `.pt` on this CPU, so `.pt` stays the default)
+- [x] Golden v1 with the fused detector: 0.80 / 1.00 / 11 of 30
+- [x] Retro (`docs/retros/m3-vision-models.md`)
+- [x] Model card (`docs/model-card.md`; target mask mAP50 ≥ 0.50 met: damage 0.733, parts 0.746)
+- [ ] Stretch: RT-DETR comparison (dropped for now)
 
 ## M4 · Tools & integration (Nov 16–26)
 
