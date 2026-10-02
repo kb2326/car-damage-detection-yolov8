@@ -1,0 +1,10 @@
+{"question": "My car is in the shop after a crash. Will you pay for a hire car, and for how long?", "policy_id": "P-1001", "expected": "STD-6.1"}
+{"question": "Do I get a replacement car while mine is being fixed?", "policy_id": "P-1004", "expected": "BAS-6.1"}
+{"question": "A stone chipped my windshield. Do I have to pay anything to get it fixed?", "policy_id": "P-1003", "expected": "PRM-4.1"}
+{"question": "Who pays for the tow truck after an accident, and is there a limit?", "policy_id": "P-1001", "expected": "STD-7.1"}
+{"question": "I damaged the car during a track day. Am I covered?", "policy_id": "P-1002", "expected": "STD-8.1"}
+{"question": "My car was stolen. Do I need to go to the police?", "policy_id": "P-1001", "expected": "STD-5.1"}
+{"question": "How much do I pay myself when my side window is smashed?", "policy_id": "P-2002", "expected": "BAS-4.1"}
+{"question": "What happens if someone lies on their claim or inflates the damage?", "policy_id": "P-1005", "expected": "STD-10.1"}
+{"question": "Is damage to my own car from hitting a pole included in this policy?", "policy_id": "P-2002", "expected": "BAS-2.1"}
+{"question": "How long do I have to tell you about an accident?", "policy_id": "P-1006", "expected": "PRM-9.1"}

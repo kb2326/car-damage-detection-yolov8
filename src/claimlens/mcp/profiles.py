@@ -10,7 +10,7 @@ from claimlens.domain import Frozen
 
 SERVERS: dict[str, tuple[str, ...]] = {
     "vision": ("segment_damage", "segment_parts", "assess_quality"),
-    "policy-admin": ("get_policy", "get_coverage"),
+    "policy-admin": ("get_policy", "get_coverage", "search_policy_clauses"),
     "claims-system": ("get_claim_history", "find_similar_claims", "add_note", "assign_queue"),
     "payments": ("issue_payment",),
 }

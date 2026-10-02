@@ -48,6 +48,7 @@ LinkedIn only, as a single post after M8. Material is collected here as each mil
 | M3a | Trained two YOLO11-seg damage models on a free Kaggle GPU (test mask mAP50 0.733, up from the course model's 0.137); golden fast-tracks 4 to 11 of 30; the safety gate caught my own design mistake (outline vs box sizing) before it shipped |
 | M3b | Part model plus fusion: "dent on rear bumper, 6% of the part"; calibration showed my model was slightly under-confident (T 0.80); ONNX turned out slower than PyTorch on a laptop CPU; the safety gate caught the same sizing mistake a second time in a new code path |
 | M4a | Our models and mock company systems as MCP tools; Claude Code can use them, and the server refuses anything outside the profile's job, including a direct call to an unadvertised tool; payments need a human-signed token |
+| M4b | One doorway to the LLM with hard spend caps ($0.03 per claim): two real Claude calls cost $0.0006 and the repeat was free from cache; policy search that returns the exact clause to quote (LanceDB hybrid search), so the agent can never cite a clause that does not exist |
 
 ---
 
@@ -151,10 +152,15 @@ something that already works.*
 - [x] Claude Code demo (`.mcp.json`, read-only `demo` profile); real stdio test with the fused model
 - [ ] **You:** try the Claude Code demo (README, "Use ClaimLens from Claude Code")
 
-**M4b: LLM gateway and policy search (next)**
+**M4b: LLM gateway and policy search (done)**
 
-- [ ] LLM gateway: model routing, retries, fallback, caching, cost caps
-- [ ] Fictional policy documents plus hybrid search with citations (`search_policy_clauses`)
+- [x] LLM gateway: tiers (Sonnet 5.5 / Haiku 4.5), retries, Claude-only fallback, response cache (ADR 0011)
+- [x] Hard cost caps: $0.03 per claim, $1.00 per day, checked before each call
+- [x] Structured outputs validated with one repair; call log with prompt hashes, never the key
+- [x] Live smoke test on the real API: about $0.0006 for two calls; a cache hit costs $0
+- [x] Fictional policy wordings (56 clauses) plus LanceDB hybrid search (BM25 + vectors, RRF) (ADR 0012)
+- [x] Citation check (`verify_citations`) and MCP tool `search_policy_clauses`
+- [x] Policy search quality: recall@5 1.00 on 10 questions (recall@1 0.60)
 
 ## M5 · Triage agent (Nov 27 – Dec 10)
 

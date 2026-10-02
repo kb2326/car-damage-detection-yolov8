@@ -33,6 +33,7 @@ class EventType(StrEnum):
     QUEUE_ASSIGNED = "QueueAssigned"
     PAYMENT_ISSUED = "PaymentIssued"
     TOOL_CALLED = "ToolCalled"
+    LLM_CALLED = "LLMCalled"
 
 
 class Payload(Frozen):
@@ -137,6 +138,18 @@ class ToolCalled(Payload):
     outcome: str
 
 
+class LLMCalled(Payload):
+    event_type: ClassVar[EventType] = EventType.LLM_CALLED
+    request_id: str
+    model: str
+    prompt_id: str | None
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    cached: bool
+    outcome: str
+
+
 PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
     cls.event_type: cls
     for cls in (
@@ -155,6 +168,7 @@ PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
         QueueAssigned,
         PaymentIssued,
         ToolCalled,
+        LLMCalled,
     )
 }
 

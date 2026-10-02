@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from claimlens.data.taxonomy import load_part_groups
 from claimlens.mcp.policy_admin import build_policy_admin
 from claimlens.mcp.profiles import load_profiles
@@ -113,3 +115,43 @@ def test_policy_admin_lookups() -> None:
     assert tool_names(build_policy_admin(PROFILES["intake"], policies, MemoryAudit())) == [
         "get_policy"
     ]
+
+
+def test_search_policy_clauses_uses_the_policy_wording(tmp_path: Path) -> None:
+    pytest.importorskip("lancedb")
+    from claimlens.knowledge.clauses import load_wordings
+    from claimlens.knowledge.embed import FakeEmbedder
+    from claimlens.knowledge.index import PolicyIndex, build_index
+
+    build_index(load_wordings(ROOT / "knowledge" / "policies"), FakeEmbedder(), tmp_path / "idx")
+    policies = load_policies(ROOT / "config" / "policies.toml")
+
+    def index() -> PolicyIndex:
+        return PolicyIndex.open(tmp_path / "idx", FakeEmbedder())
+
+    server = build_policy_admin(PROFILES["demo"], policies, MemoryAudit(), index)
+    result = call(server, "search_policy_clauses", {"query": "rental car", "policy_id": "P-1004"})
+    content = result.structured_content
+    assert content is not None
+    assert content["wording"] == "basic"
+    assert content["clauses"]
+    assert all(c["clause_id"].startswith("BAS-") for c in content["clauses"])
+    intake = build_policy_admin(PROFILES["intake"], policies, MemoryAudit(), index)
+    assert "search_policy_clauses" not in tool_names(intake)
+
+
+def test_search_without_an_index_is_an_error_result(tmp_path: Path) -> None:
+    pytest.importorskip("lancedb")
+    from claimlens.knowledge.embed import FakeEmbedder
+    from claimlens.knowledge.index import PolicyIndex
+
+    policies = load_policies(ROOT / "config" / "policies.toml")
+    server = build_policy_admin(
+        PROFILES["demo"],
+        policies,
+        MemoryAudit(),
+        lambda: PolicyIndex.open(tmp_path / "none", FakeEmbedder()),
+    )
+    result = call(server, "search_policy_clauses", {"query": "rental car"})
+    assert result.is_error
+    assert "knowledge build" in error_text(result)

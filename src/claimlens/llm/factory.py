@@ -1,0 +1,34 @@
+"""Build the real gateway from repo config. The API key is read here and nowhere else."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from claimlens.data.config import read_secret
+from claimlens.llm.budget import Budget
+from claimlens.llm.cache import ResponseCache
+from claimlens.llm.config import load_llm_config
+from claimlens.llm.gateway import Gateway
+from claimlens.llm.log import event_call_log, jsonl_call_log
+from claimlens.llm.types import LLMUnavailable
+
+
+def build_gateway(config_dir: Path, repo_root: Path, store_path: Path | None = None) -> Gateway:
+    """Gateway on the Anthropic API. Calls with a claim id are also logged on that claim."""
+    key = read_secret("ANTHROPIC_API_KEY", repo_root / ".env")
+    if not key:
+        raise LLMUnavailable("set ANTHROPIC_API_KEY in .env to use the LLM gateway")
+    from claimlens.llm.anthropic_provider import AnthropicProvider
+
+    config = load_llm_config(config_dir / "llm.toml")
+    var = repo_root / "var"
+    log = jsonl_call_log(var / "llm-calls.jsonl")
+    if store_path is not None:
+        log = event_call_log(store_path, log)
+    return Gateway(
+        config,
+        AnthropicProvider(key),
+        Budget(var / "llm-budget.sqlite", config.limits),
+        ResponseCache(var / "llm-cache.sqlite"),
+        log,
+    )
