@@ -87,3 +87,30 @@ def test_champion_alias_points_at_a_version(tmp_path: Path) -> None:
     set_champion_alias(_uri(tmp_path), report.model_version)
     client = mlflow.MlflowClient(_uri(tmp_path))
     assert str(client.get_model_version_by_alias(REGISTERED_MODEL, "champion").version) == "1"
+
+
+def test_reimport_after_the_report_is_lost_reuses_the_run(tmp_path: Path) -> None:
+    run_dir = make_run_dir(tmp_path)
+    first = _import(tmp_path, run_dir)
+    (tmp_path / "reports" / "r1.json").unlink()
+    second = _import(tmp_path, run_dir)
+    assert second.model_version == first.model_version
+    assert second.mlflow_run_id == first.mlflow_run_id
+    client = mlflow.MlflowClient(_uri(tmp_path))
+    assert len(client.search_model_versions(f"name='{REGISTERED_MODEL}'")) == 1
+
+
+def test_reimport_keeps_benchmark_timings(tmp_path: Path) -> None:
+    from claimlens.training.manifest import write_json
+
+    run_dir = make_run_dir(tmp_path)
+    first = _import(tmp_path, run_dir)
+    write_json(
+        tmp_path / "reports" / "r1.json", first.model_copy(update={"cpu_ms_per_image": 99.0})
+    )
+    assert _import(tmp_path, run_dir).cpu_ms_per_image == 99.0
+
+
+def test_alias_on_an_empty_logbook_is_a_clear_error(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="train import"):
+        set_champion_alias(_uri(tmp_path), "1")

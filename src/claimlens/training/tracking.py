@@ -82,6 +82,29 @@ def _experiment_id(client: Any, artifact_root: Path) -> str:
     )
 
 
+def _log_run(
+    client: Any,
+    run_id: str,
+    run_dir: Path,
+    manifest: RunManifest,
+    metrics: RunMetrics,
+    weights: Path,
+) -> None:
+    for key, value in manifest.config.model_dump().items():
+        client.log_param(run_id, key, str(value))
+    for step, values in _epoch_metrics(run_dir / "train" / "results.csv"):
+        for key, value in values.items():
+            client.log_metric(run_id, key, value, step=step)
+    for key, value in _final_metrics(metrics).items():
+        client.log_metric(run_id, key, value)
+    client.log_artifact(run_id, str(run_dir / "manifest.json"))
+    client.log_artifact(run_id, str(run_dir / "metrics.json"))
+    for plot in sorted((run_dir / "train").glob("*.png")):
+        client.log_artifact(run_id, str(plot), "plots")
+    client.log_artifact(run_id, str(weights), "weights")
+    client.set_terminated(run_id)
+
+
 def import_run(
     run_dir: Path,
     *,
@@ -114,40 +137,36 @@ def import_run(
     )
     if existing and report_path.is_file():
         return read_json(report_path, ModelReport)
-
-    run = client.create_run(
-        experiment_id,
-        run_name=run_name,
-        tags={
-            "claimlens_run": run_name,
-            "claimlens_commit": manifest.commit,
-            "claimlens_dataset_md5": manifest.dataset_md5,
-            "status": manifest.status,
-            "trainer": manifest.trainer_version,
-        },
-    )
-    run_id: str = run.info.run_id
-    for key, value in manifest.config.model_dump().items():
-        client.log_param(run_id, key, str(value))
-    for step, values in _epoch_metrics(run_dir / "train" / "results.csv"):
-        for key, value in values.items():
-            client.log_metric(run_id, key, value, step=step)
-    for key, value in _final_metrics(metrics).items():
-        client.log_metric(run_id, key, value)
-    client.log_artifact(run_id, str(run_dir / "manifest.json"))
-    client.log_artifact(run_id, str(run_dir / "metrics.json"))
-    for plot in sorted((run_dir / "train").glob("*.png")):
-        client.log_artifact(run_id, str(plot), "plots")
-    client.log_artifact(run_id, str(weights), "weights")
-    client.set_terminated(run_id)
+    if existing:
+        run = existing[0]
+        run_id: str = run.info.run_id
+    else:
+        run = client.create_run(
+            experiment_id,
+            run_name=run_name,
+            tags={
+                "claimlens_run": run_name,
+                "claimlens_commit": manifest.commit,
+                "claimlens_dataset_md5": manifest.dataset_md5,
+                "status": manifest.status,
+                "trainer": manifest.trainer_version,
+            },
+        )
+        run_id = run.info.run_id
+        _log_run(client, run_id, run_dir, manifest, metrics, weights)
 
     if not client.search_registered_models(f"name='{REGISTERED_MODEL}'"):
         client.create_registered_model(REGISTERED_MODEL)
-    version = client.create_model_version(
-        REGISTERED_MODEL,
-        source=f"{run.info.artifact_uri}/weights",
-        run_id=run_id,
-        tags={"claimlens_run": run_name},
+    versions = client.search_model_versions(f"run_id = '{run_id}'")
+    version = (
+        versions[0]
+        if versions
+        else client.create_model_version(
+            REGISTERED_MODEL,
+            source=f"{run.info.artifact_uri}/weights",
+            run_id=run_id,
+            tags={"claimlens_run": run_name},
+        )
     )
 
     target = models_dir / run_name / "best.pt"
@@ -172,5 +191,12 @@ def import_run(
 
 
 def set_champion_alias(tracking_uri: str, version: str) -> None:
-    client = _mlflow().MlflowClient(tracking_uri)
-    client.set_registered_model_alias(REGISTERED_MODEL, "champion", version)
+    mlflow = _mlflow()
+    client = mlflow.MlflowClient(tracking_uri)
+    try:
+        client.set_registered_model_alias(REGISTERED_MODEL, "champion", version)
+    except mlflow.exceptions.MlflowException as exc:
+        raise ValueError(
+            f"model version {version} is not in this MLflow logbook; "
+            "run `claimlens train import` for the downloaded runs first"
+        ) from exc

@@ -141,3 +141,22 @@ def test_train_report_without_a_champion_is_an_error(
     code = main(["--config", str(tmp_path / "config"), "train", "report", "--out", "r.md"])
     assert code == 1
     assert "train select" in capsys.readouterr().err
+
+
+def test_select_on_a_fresh_logbook_fails_cleanly_and_keeps_models_toml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pytest.importorskip("mlflow")
+    import shutil
+
+    from claimlens.training.manifest import write_json
+    from tests.unit.test_training_select import _report
+
+    config = tmp_path / "config"
+    shutil.copytree(CONFIG_DIR, config)
+    before = (config / "models.toml").read_text(encoding="utf-8")
+    write_json(tmp_path / "reports" / "models" / "d1.json", _report("d1", 0.9, 0.9))
+    monkeypatch.chdir(tmp_path)
+    assert main(["--config", str(config), "train", "select"]) == 1
+    assert "train import" in capsys.readouterr().err
+    assert (config / "models.toml").read_text(encoding="utf-8") == before
