@@ -66,6 +66,7 @@ class DamageFinding(Frozen):
     bbox: BoundingBox
     image_area_fraction: float = Field(ge=0.0, le=1.0)
     part: str | None = None
+    part_area_ratio: float | None = Field(default=None, ge=0.0)
 
 
 class FraudSignal(Frozen):
