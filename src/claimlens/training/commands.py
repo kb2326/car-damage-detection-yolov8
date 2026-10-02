@@ -38,9 +38,11 @@ def add_train_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
         "--from", dest="source", type=Path, required=True, help="downloaded run folder"
     )
     imp.add_argument("--allow-incomplete", action="store_true")
-    train_sub.add_parser("select", help="choose the champion on validation mask mAP50")
-    report = train_sub.add_parser("report", help="write the damage model report")
+    select = train_sub.add_parser("select", help="choose the champion on validation mask mAP50")
+    select.add_argument("--task", choices=["damage", "parts"], default="damage")
+    report = train_sub.add_parser("report", help="write a model report")
     report.add_argument("--out", type=Path, required=True)
+    report.add_argument("--task", choices=["damage", "parts"], default="damage")
     bench = train_sub.add_parser("benchmark", help="median CPU ms per image on test photos")
     bench.add_argument("run")
     bench.add_argument("--images", type=int, default=20)
@@ -81,16 +83,18 @@ def _run(args: argparse.Namespace, trainer_factory: TrainerFactory) -> int:
 
 
 def _import(args: argparse.Namespace) -> int:
+    from claimlens.training.manifest import RunManifest
     from claimlens.training.tracking import default_tracking, import_run
 
     repo_root = Path.cwd()
+    task = read_json(args.source / "manifest.json", RunManifest).config.task
     tracking_uri, artifact_root = default_tracking(repo_root)
     report = import_run(
         args.source,
         run_name=args.run,
         tracking_uri=tracking_uri,
         artifact_root=artifact_root,
-        models_dir=repo_root / "models" / "damage",
+        models_dir=repo_root / "models" / task,
         reports_dir=repo_root / "reports" / "models",
         allow_incomplete=args.allow_incomplete,
     )
@@ -102,14 +106,19 @@ def _import(args: argparse.Namespace) -> int:
 
 
 def _select(args: argparse.Namespace) -> int:
-    from claimlens.training.select import load_model_reports, select_champion, write_models_config
+    from claimlens.training.select import (
+        champion_from_report,
+        load_model_reports,
+        select_champion,
+        update_models_config,
+    )
     from claimlens.training.tracking import default_tracking, set_champion_alias
 
     repo_root = Path.cwd()
-    champion = select_champion(load_model_reports(repo_root / "reports" / "models"))
-    write_models_config(args.config / "models.toml", champion)
+    champion = select_champion(load_model_reports(repo_root / "reports" / "models", args.task))
+    update_models_config(args.config / "models.toml", args.task, champion_from_report(champion))
     tracking_uri, _ = default_tracking(repo_root)
-    set_champion_alias(tracking_uri, champion.model_version)
+    set_champion_alias(tracking_uri, champion.model_version, args.task)
     print(f"Champion: {champion.run} (val mask mAP50 {champion.val.mask_map50:.3f})")
     return 0
 
@@ -123,11 +132,12 @@ def _report(args: argparse.Namespace) -> int:
         render_model_report,
     )
 
-    reports = load_model_reports(Path.cwd() / "reports" / "models")
+    reports = load_model_reports(Path.cwd() / "reports" / "models", args.task)
     models = load_models_config(args.config / "models.toml")
-    if models is None:
-        raise ValueError("no champion yet: run `claimlens train select` first")
-    champion = next(r for r in reports if r.run == models.damage.run)
+    chosen = getattr(models, args.task) if models is not None else None
+    if chosen is None:
+        raise ValueError(f"no champion yet: run `claimlens train select --task {args.task}` first")
+    champion = next(r for r in reports if r.run == chosen.run)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render_model_report(reports, champion, date.today()), encoding="utf-8")
     print(f"Report written to {args.out}")

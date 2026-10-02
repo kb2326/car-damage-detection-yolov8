@@ -5,11 +5,13 @@ import pytest
 
 from claimlens.training.manifest import ModelReport, SplitMetrics, write_json
 from claimlens.training.select import (
+    ChampionModel,
+    champion_from_report,
     load_model_reports,
     load_models_config,
     render_model_report,
     select_champion,
-    write_models_config,
+    update_models_config,
 )
 
 
@@ -59,7 +61,8 @@ def test_no_complete_run_is_an_error() -> None:
 def test_models_config_round_trips(tmp_path: Path) -> None:
     path = tmp_path / "models.toml"
     assert load_models_config(path) is None
-    written = write_models_config(path, _report("s", 0.6, 0.5))
+    written = update_models_config(path, "damage", champion_from_report(_report("s", 0.6, 0.5)))
+    assert written.damage is not None
     assert written.damage.weights == "models/damage/s/best.pt"
     assert load_models_config(path) == written
 
@@ -79,3 +82,34 @@ def test_report_names_the_champion_and_both_runs() -> None:
     assert "0.550" in text
     assert "chosen on validation" in text.lower()
     assert "| dent |" in text
+
+
+def test_updating_one_task_keeps_the_other(tmp_path: Path) -> None:
+    path = tmp_path / "models.toml"
+    damage = champion_from_report(_report("d", 0.6, 0.5))
+    parts = ChampionModel(run="p", weights="models/parts/p/best.pt", mlflow_version="1")
+    update_models_config(path, "damage", damage)
+    config = update_models_config(path, "parts", parts)
+    assert config.damage == damage
+    assert config.parts == parts
+    assert load_models_config(path) == config
+
+
+def test_temperature_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "models.toml"
+    champion = champion_from_report(_report("d", 0.6, 0.5)).model_copy(
+        update={"temperature": 1.35, "recommended_threshold": 0.45}
+    )
+    update_models_config(path, "damage", champion)
+    loaded = load_models_config(path)
+    assert loaded is not None
+    assert loaded.damage is not None
+    assert loaded.damage.temperature == 1.35
+    assert loaded.damage.recommended_threshold == 0.45
+
+
+def test_reports_can_be_filtered_by_task(tmp_path: Path) -> None:
+    write_json(tmp_path / "d.json", _report("d", 0.6, 0.5))
+    write_json(tmp_path / "p.json", _report("p", 0.6, 0.5).model_copy(update={"task": "parts"}))
+    assert [r.run for r in load_model_reports(tmp_path, task="parts")] == ["p"]
+    assert [r.run for r in load_model_reports(tmp_path, task="damage")] == ["d"]

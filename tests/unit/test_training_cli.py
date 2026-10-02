@@ -127,7 +127,9 @@ def test_train_select_writes_models_config(tmp_path: Path, monkeypatch: pytest.M
     base = ["--config", str(config), "train"]
     assert main([*base, "import", "damage-yolo11n-v1", "--from", str(run_dir)]) == 0
     assert main([*base, "select"]) == 0
-    assert 'run = "damage-yolo11n-v1"' in (config / "models.toml").read_text(encoding="utf-8")
+    text = (config / "models.toml").read_text(encoding="utf-8")
+    assert "[damage]" in text
+    assert 'run = "damage-yolo11n-v1"' in text
     out = tmp_path / "report.md"
     assert main([*base, "report", "--out", str(out)]) == 0
     assert "Champion: `damage-yolo11n-v1`" in out.read_text(encoding="utf-8")

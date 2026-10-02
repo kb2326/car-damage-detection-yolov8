@@ -67,14 +67,15 @@ def resolve_detector(
 ) -> tuple[str, Path]:
     """Explicit flags win; otherwise the champion in config/models.toml; otherwise legacy."""
     models = load_models_config(config_dir / "models.toml")
-    kind = detector or ("yolo-seg" if models is not None else "legacy")
+    damage = models.damage if models is not None else None
+    kind = detector or ("yolo-seg" if damage is not None else "legacy")
     if weights is not None:
         return kind, weights
     if kind == "legacy":
         return kind, DEFAULT_WEIGHTS
-    if models is None:
+    if damage is None:
         raise ValueError("no champion model: run `claimlens train select` or pass --weights")
-    return kind, Path(models.damage.weights)
+    return kind, Path(damage.weights)
 
 
 def _make_detector(args: argparse.Namespace, factory: DetectorFactory) -> Detector:

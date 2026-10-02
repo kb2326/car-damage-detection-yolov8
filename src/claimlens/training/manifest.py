@@ -45,6 +45,7 @@ class ModelReport(Frozen):
     """Git-tracked summary of an imported run (`reports/models/<run>.json`); no weights."""
 
     run: str
+    task: Literal["damage", "parts"] = "damage"
     base_model: str
     commit: str
     dataset: str
@@ -57,6 +58,7 @@ class ModelReport(Frozen):
     mlflow_run_id: str
     model_version: str
     cpu_ms_per_image: float | None = None
+    cpu_ms_per_image_onnx: float | None = None
 
 
 def write_json(path: Path, model: BaseModel) -> None:

@@ -87,3 +87,13 @@ def test_champion_alias_points_at_a_version(tmp_path: Path) -> None:
     set_champion_alias(_uri(tmp_path), report.model_version)
     client = mlflow.MlflowClient(_uri(tmp_path))
     assert str(client.get_model_version_by_alias(REGISTERED_MODEL, "champion").version) == "1"
+
+
+def test_parts_runs_register_a_parts_model(tmp_path: Path) -> None:
+    from claimlens.training.tracking import registered_model
+
+    run_dir = make_run_dir(tmp_path, name="p1", task="parts")
+    report = _import(tmp_path, run_dir)
+    assert report.task == "parts"
+    client = mlflow.MlflowClient(_uri(tmp_path))
+    assert client.search_model_versions(f"name='{registered_model('parts')}'")

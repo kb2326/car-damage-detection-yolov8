@@ -14,6 +14,12 @@ from typing import Any
 from claimlens.training.manifest import ModelReport, RunManifest, RunMetrics, read_json, write_json
 
 REGISTERED_MODEL = "claimlens-damage"
+
+
+def registered_model(task: str) -> str:
+    return f"claimlens-{task}"
+
+
 EXPERIMENT = "claimlens-damage"
 
 
@@ -124,6 +130,7 @@ def import_run(
             "claimlens_dataset_md5": manifest.dataset_md5,
             "status": manifest.status,
             "trainer": manifest.trainer_version,
+            "claimlens_task": manifest.config.task,
         },
     )
     run_id: str = run.info.run_id
@@ -141,10 +148,11 @@ def import_run(
     client.log_artifact(run_id, str(weights), "weights")
     client.set_terminated(run_id)
 
-    if not client.search_registered_models(f"name='{REGISTERED_MODEL}'"):
-        client.create_registered_model(REGISTERED_MODEL)
+    name = registered_model(manifest.config.task)
+    if not client.search_registered_models(f"name='{name}'"):
+        client.create_registered_model(name)
     version = client.create_model_version(
-        REGISTERED_MODEL,
+        name,
         source=f"{run.info.artifact_uri}/weights",
         run_id=run_id,
         tags={"claimlens_run": run_name},
@@ -155,6 +163,7 @@ def import_run(
     shutil.copy2(weights, target)
     report = ModelReport(
         run=run_name,
+        task=manifest.config.task,
         base_model=manifest.config.model,
         commit=manifest.commit,
         dataset=manifest.dataset,
@@ -171,6 +180,6 @@ def import_run(
     return report
 
 
-def set_champion_alias(tracking_uri: str, version: str) -> None:
+def set_champion_alias(tracking_uri: str, version: str, task: str = "damage") -> None:
     client = _mlflow().MlflowClient(tracking_uri)
-    client.set_registered_model_alias(REGISTERED_MODEL, "champion", version)
+    client.set_registered_model_alias(registered_model(task), "champion", version)
