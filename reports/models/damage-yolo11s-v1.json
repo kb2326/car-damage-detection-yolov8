@@ -1,0 +1,41 @@
+{
+ "run": "damage-yolo11s-v1",
+ "base_model": "yolo11s-seg.pt",
+ "commit": "378aca2f6f951fc46f6ccddf8243571cb604597e",
+ "dataset": "damage-v1",
+ "dataset_md5": "cc56ac5162bfc4fdad163862267fedbd.dir",
+ "status": "complete",
+ "epochs_run": 92,
+ "best_epoch": 72,
+ "val": {
+  "box_map50": 0.7426130189586058,
+  "box_map50_95": 0.5919385982381152,
+  "mask_map50": 0.7376697813587655,
+  "mask_map50_95": 0.5599744549810456,
+  "per_class_mask_map50": {
+   "crack": 0.42335001526333293,
+   "dent": 0.6095746734647021,
+   "glass_shatter": 0.9905466866488565,
+   "lamp_broken": 0.8857348588693673,
+   "scratch": 0.5390570842419408,
+   "tire_flat": 0.9777553696643932
+  }
+ },
+ "test": {
+  "box_map50": 0.7429571776663343,
+  "box_map50_95": 0.5830219760196982,
+  "mask_map50": 0.7327043966056893,
+  "mask_map50_95": 0.5489668840338201,
+  "per_class_mask_map50": {
+   "crack": 0.4410845457532924,
+   "dent": 0.6429612533360511,
+   "glass_shatter": 0.9707587363286041,
+   "lamp_broken": 0.8833252022863923,
+   "scratch": 0.5663297089251353,
+   "tire_flat": 0.8917669330046609
+  }
+ },
+ "mlflow_run_id": "4c692899ccbf4c4a826db10118e705b2",
+ "model_version": "2",
+ "cpu_ms_per_image": 309.5
+}

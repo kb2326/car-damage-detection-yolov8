@@ -96,6 +96,8 @@ def _default_detector(spec: DetectorSpec) -> Detector:
 def resolve_detector(detector: str | None, weights: Path | None, config_dir: Path) -> DetectorSpec:
     """Explicit flags win; otherwise fused (both champions), the damage champion, or legacy."""
     models = load_models_config(config_dir / "models.toml")
+    if detector is None and weights is not None:
+        return DetectorSpec(kind="legacy", weights=weights)  # the pre-M3 meaning of --weights
     damage = models.damage if models is not None else None
     parts = models.parts if models is not None else None
     default = "fused" if damage and parts else "yolo-seg" if damage else "legacy"
@@ -121,8 +123,21 @@ def resolve_detector(detector: str | None, weights: Path | None, config_dir: Pat
     )
 
 
+def _thresholds(text: str) -> list[float]:
+    try:
+        values = [float(t) for t in text.split(",") if t.strip()]
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a list of numbers: {text!r}") from None
+    if any(not 0.0 <= v <= 1.0 for v in values):
+        raise argparse.ArgumentTypeError("thresholds must be between 0 and 1")
+    return values
+
+
 def _make_detector(args: argparse.Namespace, factory: DetectorFactory) -> Detector:
-    return factory(resolve_detector(args.detector, args.weights, args.config))
+    try:
+        return factory(resolve_detector(args.detector, args.weights, args.config))
+    except (ValueError, FileNotFoundError) as exc:
+        raise DetectorUnavailableError(str(exc)) from exc
 
 
 def _ultralytics_segmenter(weights: Path, name: str) -> Segmenter:
@@ -184,7 +199,10 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
     evaluate.add_argument(
-        "--what-if", default="", help="comma-separated confidence thresholds, e.g. 0.25,0.40,0.55"
+        "--what-if",
+        type=_thresholds,
+        default=[],
+        help="comma-separated confidence thresholds, e.g. 0.25,0.40,0.55",
     )
 
     data = sub.add_parser("data", help="fetch and build datasets")
@@ -254,6 +272,27 @@ def main(
     exporter: ExporterFactory = _export_onnx,
 ) -> int:
     args = build_parser().parse_args(argv)
+    try:
+        return _dispatch(
+            args, detector_factory, labeller_factory, trainer_factory, segmenter_factory, exporter
+        )
+    except DetectorUnavailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+class DetectorUnavailableError(RuntimeError):
+    pass
+
+
+def _dispatch(
+    args: argparse.Namespace,
+    detector_factory: DetectorFactory,
+    labeller_factory: LabellerFactory,
+    trainer_factory: TrainerFactory,
+    segmenter_factory: SegmenterFactory,
+    exporter: ExporterFactory,
+) -> int:
     if args.command == "eval-triage":
         return _eval_triage(args, detector_factory)
     if args.command == "data":
@@ -337,7 +376,7 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     with tempfile.TemporaryDirectory() as workdir:
         results = run_triage_eval(cases, make, repo_root=Path.cwd(), workdir=Path(workdir))
     metrics = compute_triage_metrics([(r.expected, r.predicted) for r in results])
-    thresholds = [float(t) for t in args.what_if.split(",") if t.strip()]
+    thresholds: list[float] = args.what_if
     decision_config = load_decision_config(args.config / "decision_policy.toml")
     what_if = what_if_thresholds(results, decision_config, thresholds)
     meta = ReportMeta(

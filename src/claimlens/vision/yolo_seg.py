@@ -1,4 +1,9 @@
-"""Our YOLO11-seg damage model. Size comes from the mask outline, not the box.
+"""Our YOLO11-seg damage model.
+
+Size (`image_area_fraction`) comes from the **box**, because the rate card's severity bands and the
+golden oracle are both defined on box area. Sizing by the mask outline made damage look smaller
+than the bands assume and fast-tracked two claims that needed a person (M3a golden gate). Mask
+outlines are used for fusion with parts in M3b instead.
 
 Requires `uv sync --group vision`. Excluded from coverage; see tests/integration/test_yolo_seg.py.
 """
@@ -9,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from claimlens.domain import DamageFinding
-from claimlens.vision.base import findings_from_predictions, polygon_area_fraction
+from claimlens.vision.base import findings_from_predictions
 
 
 class YoloSegDetector:
@@ -28,11 +33,6 @@ class YoloSegDetector:
         ]
         height, width = result.orig_shape
         boxes = result.boxes
-        fractions = (
-            None
-            if result.masks is None
-            else [polygon_area_fraction(p.reshape(-1).tolist()) for p in result.masks.xyn]
-        )
         return findings_from_predictions(
             photo_id=photo_id,
             boxes_xyxy=boxes.xyxy.tolist(),
@@ -41,5 +41,4 @@ class YoloSegDetector:
             class_names=result.names,
             image_width=int(width),
             image_height=int(height),
-            area_fractions=fractions,
         )

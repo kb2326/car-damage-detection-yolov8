@@ -126,9 +126,9 @@ def _select(args: argparse.Namespace) -> int:
 
     repo_root = Path.cwd()
     champion = select_champion(load_model_reports(repo_root / "reports" / "models", args.task))
-    update_models_config(args.config / "models.toml", args.task, champion_from_report(champion))
     tracking_uri, _ = default_tracking(repo_root)
     set_champion_alias(tracking_uri, champion.model_version, args.task)
+    update_models_config(args.config / "models.toml", args.task, champion_from_report(champion))
     print(f"Champion: {champion.run} (val mask mAP50 {champion.val.mask_map50:.3f})")
     return 0
 

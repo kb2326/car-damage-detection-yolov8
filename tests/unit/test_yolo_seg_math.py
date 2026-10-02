@@ -129,3 +129,13 @@ def test_benchmark_returns_median_milliseconds(tmp_path: Path) -> None:
 def test_benchmark_needs_images() -> None:
     with pytest.raises(ValueError, match="at least one image"):
         benchmark_detector(FakeDetector(), [])
+
+
+def test_weights_without_a_detector_flag_keep_the_legacy_meaning(tmp_path: Path) -> None:
+    (tmp_path / "models.toml").write_text(
+        '[damage]\nrun = "s"\nweights = "models/damage/s/best.pt"\nmlflow_version = "2"\n',
+        encoding="utf-8",
+    )
+    assert resolve_detector(None, tmp_path / "old.pt", tmp_path) == DetectorSpec(
+        kind="legacy", weights=tmp_path / "old.pt"
+    )

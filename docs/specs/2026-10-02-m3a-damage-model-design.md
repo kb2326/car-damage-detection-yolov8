@@ -120,8 +120,11 @@ zips `data/processed/damage-v1` with a `dataset.json` holding its DVC md5.
 
 Implements `Detector`. For each predicted instance it builds a `DamageFinding` with:
 - the box, confidence and class (via `normalize_class_name`, so unknown classes raise);
-- `image_area_fraction` from the **mask polygon area** (shoelace formula on normalised
-  coordinates), not the box. The pure function `polygon_area_fraction` is unit-tested.
+- `image_area_fraction` from the **box**. *Revised 2026-10-02:* the first design used the mask
+  polygon area, but the rate card bands and the golden oracle are defined on box area. Mask sizing
+  fast-tracked two claims that needed a person (escalation recall 0.97), while box sizing kept
+  1.00 with the same 11 correct fast-tracks. The owner approved the change. `polygon_area_fraction`
+  stays for M3b fusion.
 
 `model_version` is `yolo11-seg:<run>`. Missing weights raise at construction. Requires `vision`.
 
