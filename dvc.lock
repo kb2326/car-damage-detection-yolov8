@@ -58,12 +58,12 @@ stages:
     deps:
     - path: config/datasets.toml
       hash: md5
-      md5: c04217f146275f058767dbf615dafdd4
+      md5: 59443782382a9751dc46d08e9fe5b87d
       size: 1778
     - path: config/taxonomy.toml
       hash: md5
-      md5: 68daa6da72b5544416cdabf5ce3068a0
-      size: 742
+      md5: 86d35d5df5715813edecfb585e9a8918
+      size: 1508
     - path: data/raw/carparts-seg
       hash: md5
       md5: a008a1f49dd5e752d186d834145efbc2.dir
@@ -71,14 +71,14 @@ stages:
       nfiles: 7668
     - path: src/claimlens/data
       hash: md5
-      md5: 5bcd69dac396572f458b0bfef422d48f.dir
-      size: 33260
+      md5: cad6b828ce92202dbd61098d8c9141d6.dir
+      size: 34552
       nfiles: 13
     outs:
     - path: data/interim/parts-v1
       hash: md5
-      md5: b270de3bf4cb6fd06b7341802eded212.dir
-      size: 10107061
+      md5: 0f26bac1f6c9be55554eaa1ddad2ed79.dir
+      size: 10371767
       nfiles: 3
     - path: data/processed/parts-v1
       hash: md5
