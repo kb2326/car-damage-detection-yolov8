@@ -170,11 +170,12 @@ something that already works.*
 - [x] LangGraph chosen by the owner without a bake-off (ADR 0013, supersedes ADR 0007)
 - [x] Citations checked in code: every clause exists and belongs to the claimant's wording
 - [x] Golden v1 with the LLM agent: escalation recall 1.00, $0.009 per claim; fast-tracks 1 of 30 (stub 9): the agent holds back claims whose vision output is impossible (fusion fix needed)
-- [ ] Human review queue and approval tokens
-- [ ] 150 golden claims
-- [ ] LLM judge, checked against 50 of your own labels
-- [ ] CI blocks changes that lower eval scores
-- [ ] Tracing in Phoenix (OpenTelemetry)
+- [x] Fusion fix: damage only on plausible parts, part ratio capped at 1 (ADR 0009 update)
+- [x] Human review queue: `claimlens queue`, `claimlens review-claim`; only a person can deny; payments wait for a review (ADR 0015)
+- [x] 150 golden claims (v2): 53 narrative cases; the agent catches 43 of 43 with the right clause, fast-tracks 3 of 10 harmless stories (too cautious)
+- [ ] LLM judge, checked against 50 of your own labels (judge built, pass rate 0.77; **waiting for your labels**)
+- [x] CI blocks changes that lower eval scores or skip re-evaluation (`claimlens eval-gate`, ADR 0014)
+- [x] Tracing in Phoenix (OpenTelemetry), opt-in with `CLAIMLENS_TRACING=1`
 
 ## M6 · Intake agent & memory (Dec 11–24)
 
