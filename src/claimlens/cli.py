@@ -326,6 +326,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma-separated confidence thresholds, e.g. 0.25,0.40,0.55",
     )
 
+    redteam = sub.add_parser("eval-redteam", help="run the red-team suite (hijacked mode, no key)")
+    redteam.add_argument("--report", type=Path, required=True, help="Markdown report to write")
     gate = sub.add_parser("eval-gate", help="CI: check the committed scorecard (no models, no key)")
     gate.add_argument("--root", type=Path, default=Path("."))
     gate.add_argument("--current", type=Path, default=Path("evals/scorecards/current.json"))
@@ -419,6 +421,10 @@ def main(
         return run_memory_command(args, embedder_factory)
     setup_tracing()  # does nothing unless CLAIMLENS_TRACING=1
     try:
+        if args.command == "eval-redteam":
+            from claimlens.evals.redteam import run_redteam_command
+
+            return run_redteam_command(args.report, Path.cwd())
         if args.command == "eval-intake":
             return run_eval_intake(args)
         if args.command == "judge":
