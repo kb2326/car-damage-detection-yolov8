@@ -12,6 +12,6 @@ max_retakes = 2         # retakes per photo kind after the first try
 max_tokens = 400
 
 [photo_coaching] # intake only; the pipeline's quality gate is unchanged
-# Golden photos the pipeline accepts: darkest mean brightness 72, least sharp edge variance 250.
+# Golden photos the pipeline accepts: darkest mean brightness 72, least sharp edge variance 181.
 min_brightness = 40
 min_edge_variance = 100
