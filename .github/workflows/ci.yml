@@ -23,3 +23,5 @@ jobs:
         run: uv run mypy
       - name: Tests
         run: uv run pytest
+      - name: Eval gate (committed scorecard vs baseline)
+        run: uv run claimlens eval-gate
