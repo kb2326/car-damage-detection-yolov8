@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.types import interrupt
 
@@ -87,9 +88,10 @@ class IntakeState(MessagesState):
     transcript: list[dict[str, str]]  # customer-facing exchange, for the transcript hash
     claim_id: str | None
     forced: bool
+    session_id: str
 
 
-def initial_state(system: str, kickoff: str) -> dict[str, Any]:
+def initial_state(system: str, kickoff: str, session_id: str = "") -> dict[str, Any]:
     from langchain_core.messages import HumanMessage, SystemMessage
 
     return {
@@ -105,6 +107,7 @@ def initial_state(system: str, kickoff: str) -> dict[str, Any]:
         "transcript": [],
         "claim_id": None,
         "forced": False,
+        "session_id": session_id,
     }
 
 
@@ -120,12 +123,17 @@ def build_intake_graph(
     today: Callable[[], date],
     checkpointer: Any = None,
 ) -> Any:
-    def agent(state: IntakeState) -> dict[str, Any]:
+    settings = config  # LangGraph passes the run's settings to a node parameter named `config`
+
+    def agent(state: IntakeState, config: RunnableConfig) -> dict[str, Any]:
         n = f"{state['turns']}-{state['steps']}"
-        if state["steps"] >= config.max_steps_per_turn:
+        if state["steps"] >= settings.max_steps_per_turn:
             fallback = {"name": ASK, "args": {"message": FALLBACK}, "id": f"fallback-{n}"}
             return {"messages": [AIMessage(content="", tool_calls=[fallback])]}
-        reply = model.bind_tools(TOOLS).invoke(state["messages"])
+        # Each session spends against its own cap (the gateway's per-claim cap).
+        session = config.get("configurable", {}).get("thread_id")
+        session_model = model.model_copy(update={"claim_id": f"intake-{session}"})
+        reply = session_model.bind_tools(TOOLS).invoke(state["messages"])
         if not reply.tool_calls:  # plain text is treated as a question to the customer
             text = str(reply.content).strip() or FALLBACK
             call = {"name": ASK, "args": {"message": text}, "id": f"text-{n}"}
