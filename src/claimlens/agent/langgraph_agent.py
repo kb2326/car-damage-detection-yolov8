@@ -6,6 +6,8 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from langchain_core.tools import StructuredTool
+
 from claimlens.agent.chat_model import GatewayChatModel
 from claimlens.agent.config import AgentConfig
 from claimlens.agent.evidence import render_evidence
@@ -23,6 +25,7 @@ from claimlens.llm.gateway import Gateway
 from claimlens.llm.prompts import Prompt
 from claimlens.mcp.base import ScopedServer
 from claimlens.policy import PolicyRepository
+from claimlens.skills import Skill
 
 SEARCH = "search_policy_clauses"
 
@@ -37,7 +40,9 @@ class LangGraphTriageAgent:
         policies: PolicyRepository,
         index: PolicyIndex | Callable[[], PolicyIndex],
         clock: Callable[[], float] = time.monotonic,
+        skills: Mapping[str, Skill] | None = None,
     ) -> None:
+        self.skills: dict[str, Skill] = dict(skills or {})
         self._gateway = gateway
         self._config = config
         self._prompt = prompt
@@ -82,13 +87,53 @@ class LangGraphTriageAgent:
                 args, evidence_ids=evidence.ids, wording=wording, wording_of=self._wording_of
             )
 
-        graph = build_graph(model, tools, check, self._config, self._clock)
+        used: list[str] = []
+        all_tools = [*tools, *self._skill_tool(used)]
+        graph = build_graph(model, all_tools, check, self._config, self._clock)
         tags = {
             "claim_id": str(state.claim_id),
             "agent_version": self.agent_version,
             "prompt_id": self._prompt.id,
         }
         accepted = run_graph(
-            graph, self._prompt.text, evidence.text, self._config, self._clock, tags
+            graph, self._system_text(), evidence.text, self._config, self._clock, tags
         )
-        return to_agent_recommendation(Recommendation.model_validate(accepted), evidence.ids)
+        rec = to_agent_recommendation(Recommendation.model_validate(accepted), evidence.ids)
+        return rec.model_copy(update={"skills_used": tuple(dict.fromkeys(used))})
+
+    def _system_text(self) -> str:
+        if not self.skills:
+            return self._prompt.text
+        listed = "\n".join(f"- {s.name}: {s.description}" for s in self.skills.values())
+        return (
+            f"{self._prompt.text}\n\nApproved procedures (load one with load_skill when the "
+            f"claim matches its description):\n{listed}"
+        )
+
+    def _skill_tool(self, used: list[str]) -> list[StructuredTool]:
+        if not self.skills:
+            return []
+        skills = self.skills
+
+        def load_skill(name: str) -> str:
+            skill = skills.get(name)
+            if skill is None:  # a plain answer: a mistyped name is not a failed lookup
+                return f"No approved procedure named {name!r}. Available: {', '.join(skills)}."
+            used.append(f"{skill.name}@v{skill.version}")
+            return (
+                f'<procedure name="{skill.name}" version="{skill.version}">\n'
+                f"{skill.body}\n</procedure>"
+            )
+
+        return [
+            StructuredTool.from_function(
+                func=load_skill,
+                name="load_skill",
+                description="Load an approved procedure by name (see the system text).",
+                args_schema={
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                    "required": ["name"],
+                },
+            )
+        ]

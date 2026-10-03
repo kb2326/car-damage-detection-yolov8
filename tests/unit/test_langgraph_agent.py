@@ -173,9 +173,10 @@ def test_build_llm_agent_wires_config_prompt_and_tools(tmp_path: Path, index: Po
     agent = build_llm_agent(
         ROOT / "config", ROOT, tmp_path / "claims.db", gateway=gateway, index=index
     )
-    assert agent.agent_version == "triage-agent-v1+triage/v1"
+    assert agent.agent_version == "triage-agent-v1+triage/v2"
     agent.recommend(_state())
-    assert {t.name for t in fake.calls[0]["tools"]} == {*CONFIG.tools, SUBMIT}
+    # The repo skills are approved, so the agent also gets load_skill.
+    assert {t.name for t in fake.calls[0]["tools"]} == {*CONFIG.tools, SUBMIT, "load_skill"}
     assert fake.calls[0]["max_tokens"] == CONFIG.max_tokens
 
 

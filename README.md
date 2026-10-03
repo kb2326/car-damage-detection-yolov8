@@ -4,10 +4,11 @@
 for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
 of every consequential decision.
 
-> Status: **M0–M5 complete** (foundations, walking skeleton, data engine, vision models, tools,
-> the LLM triage agent and its evaluation). Next: **M6, the intake agent and memory.** This
-> repository started as a STAT 5350 course project (a YOLOv8 car-damage detector). See [`legacy/README.md`](legacy/README.md) for the original code and
-> the audit that motivated the rebuild.
+> Status: **M0–M6 complete** (foundations, walking skeleton, data engine, vision models, tools,
+> the LLM triage agent and its evaluation, the intake agent and memory). Next: **M7, trust and
+> governance.** This repository started as a STAT 5350 course project (a YOLOv8 car-damage
+> detector). See [`legacy/README.md`](legacy/README.md) for the original code and the audit that
+> motivated the rebuild.
 
 ## Where it stands
 
@@ -23,7 +24,8 @@ of every consequential decision.
 | Tools (MCP) | 4 servers with per-agent scopes; payments need a human-signed, single-use token | Usable from Claude Code |
 | Triage agent | LangGraph agent on the gateway and read-only MCP tools; cites clauses, checked in code | Escalation recall 1.00, $0.010 per claim, 0 failures |
 | Agent evaluation | Golden v2 (150 claims, 53 story cases), code-scored quality, an LLM judge, a CI gate on a committed scorecard | Stories caught **43 of 43** with the right clause; harmless stories fast-tracked 3 of 10 (too cautious) |
-| Intake agent | A chat that collects 10 facts and 3 photos, coaches retakes, pauses and resumes (LangGraph checkpoints) | 3 live scripted customers complete intake correctly |
+| Intake agent | A chat that collects 10 facts and 3 photos, coaches retakes, pauses and resumes (LangGraph checkpoints) | Simulated customers: pass^4 **0.80** (target 0.70) |
+| Memory and skills | Claim memory written by the workflow (near-copy photos, same policy, similar damage); 3 approved adjuster procedures | Harmless stories fast-tracked 5 of 10 (was 3); recall still 1.00 |
 | Human review | Review queue; only a person can deny; payments wait for a person on review routes | `claimlens queue`, `claimlens review-claim` |
 | LLM gateway | Tiers, retries, fallback, cache; caps of $0.03 per claim and $1 per day | Two live test calls cost $0.0006 in total |
 | Policy search | 56 fictional clauses, LanceDB hybrid search, citation check | recall@5 **1.00** on 10 questions (a small corpus, so a generous bar) |
@@ -183,6 +185,7 @@ src/claimlens/      Python package
   llm/              LLM gateway: tiers, retries, cache, cost caps, call log
   knowledge/        policy wording parser and LanceDB hybrid search
   intake_agent/     LangGraph intake chat: facts, photo coaching, sessions, terminal
+  memory/           claim memory: records, LanceDB index, near-copy photos, writer
   agent/            LangGraph triage agent: chat model on the gateway, MCP tools adapter, checks
   evals/            golden sets, triage eval, agent metrics, LLM judge, scorecard and gate
 config/             rules, rate card, taxonomy, training runs, agent profiles, LLM tiers
@@ -192,7 +195,7 @@ tests/              unit and integration tests, fixtures
 training/           Kaggle GPU jobs
 evals/              golden claims, policy-search questions, evaluation reports
 reviews/            label review decisions, versioned as data
-docs/               PR/FAQ, specs, plans, ADRs 0001-0016, data card, model card, retros
+docs/               PR/FAQ, specs, plans, ADRs 0001-0017, data card, model card, retros
 data/               datasets — versioned with DVC, not git (see data/README.md)
 models/             model weights — private, not in git (see models/README.md)
 legacy/             the original course project, frozen for comparison
@@ -224,6 +227,13 @@ uv run claimlens resume <claim-id>   # finish a claim that was interrupted
 uv run claimlens intake            # /photo <path> sends a photo, /quit pauses
 uv run claimlens intake --list     # paused sessions
 uv run claimlens intake --session <id>
+
+# Claim memory (opt-in with --memory on run, resume, review-claim, eval-triage)
+uv run claimlens --memory run --policy P-1001 tests/fixtures/images/dent_1.jpg
+uv run claimlens memory rebuild | show <claim-id> | forget <claim-id>
+
+# Simulated customers for the intake agent (about $4)
+uv run claimlens eval-intake -k 4 --report evals/reports/intake.md --llm-daily-cap 10
 
 # Human review: claims waiting for a person, and recording a decision
 uv run claimlens queue
@@ -287,8 +297,8 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 | M3 ✅ | Vision models: damage + part instance segmentation, fusion, calibration, model card |
 | M4 ✅ | Tools & integration: MCP servers with scopes, LLM gateway, policy search with citations |
 | M5 ✅ | Triage agent: LangGraph agent, human review queue, golden v2, LLM judge, CI eval gate, tracing |
-| M6 (next) | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
-| M7 | Trust & governance: OWASP agentic threat model, red-team, fraud, PII, AIS program |
+| M6 ✅ | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
+| M7 (next) | Trust & governance: OWASP agentic threat model, red-team, fraud, PII, AIS program |
 | M8 | Ship: ONNX, Docker, public demo, monitoring |
 
 Full design: [`docs/specs/2026-10-01-claimlens-design.md`](docs/specs/2026-10-01-claimlens-design.md).

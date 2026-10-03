@@ -25,6 +25,9 @@ from claimlens.events.payloads import (
     IntakeCompleted,
     IntegrityChecked,
     LLMCalled,
+    MemoryForgotten,
+    MemoryWriteFailed,
+    MemoryWritten,
     NoteAdded,
     Payload,
     PaymentIssued,
@@ -142,7 +145,7 @@ def _apply(state: ClaimState, event: ClaimEvent, payload: Payload) -> None:
             state.review = payload
         case IntakeCompleted():
             state.intake = payload
-        case ToolCalled() | LLMCalled():
+        case ToolCalled() | LLMCalled() | MemoryWritten() | MemoryForgotten() | MemoryWriteFailed():
             pass
         case ClaimReported():
             raise ValueError("ClaimReported may only be the first event of a claim")

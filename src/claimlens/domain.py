@@ -107,6 +107,7 @@ class AgentRecommendation(Frozen):
     citations: tuple[str, ...]
     open_questions: tuple[str, ...] = ()
     policy_citations: tuple[str, ...] = ()
+    skills_used: tuple[str, ...] = ()  # procedures the agent loaded, as name@vN
 
 
 class Decision(Frozen):

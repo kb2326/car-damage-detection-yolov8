@@ -19,6 +19,7 @@ def build_gateway(
     store_path: Path | None = None,
     *,
     per_day_usd: float | None = None,
+    cache_path: Path | None = None,
 ) -> Gateway:
     """Gateway on the Anthropic API. Calls with a claim id are also logged on that claim."""
     key = read_secret("ANTHROPIC_API_KEY", repo_root / ".env")
@@ -38,6 +39,7 @@ def build_gateway(
         config,
         AnthropicProvider(key),
         Budget(var / "llm-budget.sqlite", config.limits),
-        ResponseCache(var / "llm-cache.sqlite"),
+        # An evaluation that repeats trials gives each its own cache, so repeats are real.
+        ResponseCache(cache_path or var / "llm-cache.sqlite"),
         log,
     )

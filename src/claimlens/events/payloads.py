@@ -39,6 +39,9 @@ class EventType(StrEnum):
     LLM_CALLED = "LLMCalled"
     HUMAN_REVIEWED = "HumanReviewed"
     INTAKE_COMPLETED = "IntakeCompleted"
+    MEMORY_WRITTEN = "MemoryWritten"
+    MEMORY_FORGOTTEN = "MemoryForgotten"
+    MEMORY_WRITE_FAILED = "MemoryWriteFailed"
 
 
 class Payload(Frozen):
@@ -120,6 +123,29 @@ class IntakeCompleted(Payload):
     retakes: int
     transcript_sha256: str
     handover: str = ""  # why intake ended early (turn limit, spending cap), if it did
+
+
+class MemoryWritten(Payload):
+    """The workflow wrote this claim to memory; source_seq is the record's provenance."""
+
+    event_type: ClassVar[EventType] = EventType.MEMORY_WRITTEN
+    record_id: str
+    fields: tuple[str, ...]
+    source_seq: tuple[int, ...]
+
+
+class MemoryForgotten(Payload):
+    """This claim was removed from memory; its log is kept."""
+
+    event_type: ClassVar[EventType] = EventType.MEMORY_FORGOTTEN
+    reason: str
+
+
+class MemoryWriteFailed(Payload):
+    """Writing this claim to memory failed. Not a processing failure: the rules never see it."""
+
+    event_type: ClassVar[EventType] = EventType.MEMORY_WRITE_FAILED
+    error: str
 
 
 class HumanReviewed(Payload):
@@ -219,6 +245,9 @@ PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
         LLMCalled,
         HumanReviewed,
         IntakeCompleted,
+        MemoryWritten,
+        MemoryForgotten,
+        MemoryWriteFailed,
     )
 }
 

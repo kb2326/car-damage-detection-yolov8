@@ -113,6 +113,10 @@ class IntakeSessions:
         out = self._graph.invoke(Command(resume=resume), self._config(session_id))
         return self._turn(session_id, out)
 
+    def values(self, session_id: str) -> dict[str, Any]:
+        """The session's saved state (facts, photos, gaps, turns...), for evaluation."""
+        return dict(self._graph.get_state(self._config(session_id)).values)
+
     def open_sessions(self) -> list[str]:
         saver = self._graph.checkpointer
         ids = {c.config["configurable"]["thread_id"] for c in saver.list(None)}
@@ -178,6 +182,7 @@ def build_intake(
     gateway: Any = None,
     process: bool = True,
     today: Callable[[], date] = date.today,
+    submit: Callable[[IntakeState], str] | None = None,
 ) -> IntakeSessions:
     """The real wiring: gateway on the fast tier, the intake profile's policy lookup, and a
     SQLite checkpointer so sessions survive restarts."""
@@ -219,7 +224,7 @@ def build_intake(
         model,
         lookup,
         config,
-        pipeline_submitter(deps_factory, config, process=process),
+        submit or pipeline_submitter(deps_factory, config, process=process),
         today,
         checkpointer=SqliteSaver(conn),
         stage=keep_photo(checkpoint_path.parent / "intake-photos"),

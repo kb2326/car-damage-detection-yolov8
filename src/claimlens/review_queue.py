@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
 from uuid import UUID
 
 from claimlens.domain import Route
@@ -9,6 +11,8 @@ from claimlens.events.envelope import Actor, ActorKind
 from claimlens.events.payloads import HumanReviewed, ReviewAction
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import SQLiteEventStore
+from claimlens.memory.index import ClaimMemory
+from claimlens.memory.writer import remember
 
 _REVIEW_ROUTES = (Route.ADJUSTER_REVIEW, Route.FRAUD_REVIEW)
 _CLOSING = (ReviewAction.APPROVE, ReviewAction.DENY)
@@ -43,10 +47,19 @@ def pending_reviews(store: SQLiteEventStore, route: Route | None = None) -> list
     return [state for _, state in sorted(pending, key=lambda item: item[0])]
 
 
-def record_review(store: SQLiteEventStore, claim_id: UUID, review: HumanReviewed) -> int:
+def record_review(
+    store: SQLiteEventStore,
+    claim_id: UUID,
+    review: HumanReviewed,
+    *,
+    memory: ClaimMemory | None = None,
+    photo_path: Callable[[str], Path] | None = None,
+) -> int:
     if fold(store.load(claim_id)).decision is None:
         raise ValueError(f"claim {claim_id} has not been decided yet")
     event = store.append(claim_id, review, Actor(kind=ActorKind.HUMAN, name=review.reviewer))
+    if memory is not None and photo_path is not None:
+        remember(store, claim_id, memory, photo_path)
     return event.seq
 
 

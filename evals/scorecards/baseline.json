@@ -2,25 +2,26 @@
  "created_on": "2026-10-03",
  "golden": "evals/golden/v2/claims.jsonl",
  "versions": {
-  "agent": "triage-agent-v1+triage/v1",
+  "agent": "triage-agent-v1+triage/v2",
   "detector": "fused:damage-yolo11s-v1+parts-yolo11n-v1+T0.80",
   "decision_policy": "decision-policy-v1"
  },
  "metrics": {
-  "route_accuracy": 0.76,
+  "route_accuracy": 0.7733333333333333,
   "escalation_recall": 1.0,
   "citation_validity": 1.0,
   "citation_hit_rate": 1.0,
   "narrative_catch_rate": 1.0,
-  "benign_pass_rate": 0.3,
+  "benign_pass_rate": 0.5,
   "agent_failure_rate": 0.0,
-  "cost_mean_usd": 0.00999596,
+  "cost_mean_usd": 0.010681333333333334,
   "judge_pass_rate": null
  },
  "fingerprints": {
-  "config/agent.toml": "591d025b1b96efc14fd204fa47e35c2b6fa307c3b59dcb46e11e183673ad25a1",
+  "config/agent.toml": "77918a2eac252533a5dca3278ff7bec4bb87d2ae712fc2938adec7c1973a6bc8",
   "config/agents.toml": "a45cc6297602ef063517b548506afbf1cbd8d8bf8a58a0935677f7055f9a2578",
   "config/decision_policy.toml": "697aca830804914204c058567c7eede0e51f2bc38da7689d1f36519f130fb8bb",
+  "config/intake.toml": "0cf31e7662ed24b475b6deaef85ab6d3cf920c3b87e5e3946ded7270ac620d51",
   "config/llm.toml": "7c868fc36a0d8c71a8a29ca2c0c84b8092703dcd5dfd05da0e74b26715209e0c",
   "config/models.toml": "0ddd1524af33332482ef8a10c9bb0514d9a7f74e9683804a166d2dff5b5fe054",
   "config/policies.toml": "fd92cf50167d88a65ba697ad535cb06d91039703dd25299bababc477291995ad",
@@ -31,7 +32,11 @@
   "knowledge/policies/premium.md": "969462a6e46946abde5cb9b9daa324bada099f721493d4591f4f1f4d91e36432",
   "knowledge/policies/standard.md": "ad37502b3bb6f23ee81ab112f194871fd8bacc2899e84e332e5fb514eefe9573",
   "prompts/judge/v1.md": "ffdda46a6d5c69e4508c73244af1b824bc14e314b595939da37f6e83393d08af",
-  "prompts/triage/v1.md": "802bcae6ce1d32f38b09381b121afeabdd44c16e05bfbaba971ad3ec61b3ba36"
+  "prompts/triage/v1.md": "802bcae6ce1d32f38b09381b121afeabdd44c16e05bfbaba971ad3ec61b3ba36",
+  "prompts/triage/v2.md": "77e386ebddbdc51494ff4dfd006fd95b8b464a4964ec45bc7ea58bc8526bbb54",
+  "skills/exclusion-review/SKILL.md": "9b651896f05b2c6880fc1f501db3e46326b0a92dae97bcd08cdc5c752010dbd5",
+  "skills/flat-tyre-claims/SKILL.md": "2c444e3298eb3ce60a29e9c93d80a5ad898ba219432a282ee82fbfd19b21413f",
+  "skills/glass-claims/SKILL.md": "5f500e7bbb70071dad7cca0910c7177c6fa2dcbb2e7de92dbd2e7950954f7ed7"
  },
  "cases": 150
 }

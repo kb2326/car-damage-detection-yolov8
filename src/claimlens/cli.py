@@ -26,6 +26,7 @@ from claimlens.decision import load_decision_config
 from claimlens.domain import Frozen, Route
 from claimlens.evals.agent_metrics import AgentQuality
 from claimlens.evals.golden import GoldenClaim, load_golden, write_golden
+from claimlens.evals.intake_commands import add_eval_intake_parser, run_eval_intake
 from claimlens.evals.judge_commands import (
     JudgeGatewayFactory,
     add_judge_parser,
@@ -58,6 +59,8 @@ from claimlens.knowledge.commands import (
 )
 from claimlens.knowledge.embed import Embedder
 from claimlens.llm.gateway import Gateway
+from claimlens.memory.commands import MEMORY_PATH, add_memory_parser, run_memory_command
+from claimlens.memory.index import ClaimMemory
 from claimlens.policy import load_policies
 from claimlens.pricing import load_rate_card
 from claimlens.review.decisions import (
@@ -95,11 +98,18 @@ AgentFactory = Callable[[argparse.Namespace, Path], TriageAgent]
 def _llm_agent(args: argparse.Namespace, store_path: Path) -> TriageAgent:
     from claimlens.agent.factory import build_llm_agent
 
+    # The triage agent searches the same memory the workflow writes (var/memory for a claim,
+    # the case folder in an evaluation). Blobs sit next to the store in both layouts.
+    own_claims = store_path == args.db
+    blobs = args.blobs if own_claims else store_path.parent / "blobs"
+    memory_dir = MEMORY_PATH if own_claims else store_path.parent / "memory"
     return build_llm_agent(
         args.config,
         Path.cwd(),
         store_path,
         per_day_usd=getattr(args, "llm_daily_cap", None),
+        memory=_open_memory(args, memory_dir),
+        photo_path=BlobStore(blobs).path,
     )
 
 
@@ -237,6 +247,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="stub",
         help="triage agent: rule-based stub (default) or the LLM agent (needs ANTHROPIC_API_KEY)",
     )
+    parser.add_argument(
+        "--memory",
+        action="store_true",
+        help="remember decided claims in var/memory for find_similar_claims (needs the "
+        "knowledge group; downloads a small embedding model once)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     queue = sub.add_parser("queue", help="claims waiting for a person, oldest first")
@@ -325,6 +341,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_knowledge_parser(sub)
     add_judge_parser(sub)
     add_intake_parser(sub)
+    add_memory_parser(sub)
+    add_eval_intake_parser(sub)
     return parser
 
 
@@ -334,8 +352,10 @@ def make_deps(
     config_dir: Path,
     detector: Detector,
     agent: TriageAgent | None = None,
+    memory: ClaimMemory | None = None,
 ) -> PipelineDeps:
     return PipelineDeps(
+        memory=memory,
         store=store,
         blobs=blobs,
         detector=detector,
@@ -386,11 +406,16 @@ def main(
     args = build_parser().parse_args(argv)
     if args.command == "knowledge":
         return run_knowledge_command(args, embedder_factory=embedder_factory)
+    if args.command == "memory":
+        return run_memory_command(args, embedder_factory)
     setup_tracing()  # does nothing unless CLAIMLENS_TRACING=1
     try:
+        if args.command == "eval-intake":
+            return run_eval_intake(args)
         if args.command == "judge":
             return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
         args.agent_factory = agent_factory
+        args.embedder_factory = embedder_factory
         if args.command == "intake":
 
             def pipeline(a: argparse.Namespace) -> PipelineDeps:
@@ -420,6 +445,15 @@ class DetectorUnavailableError(RuntimeError):
 
 class AgentUnavailableError(RuntimeError):
     pass
+
+
+def _open_memory(args: argparse.Namespace, path: Path) -> ClaimMemory | None:
+    """The claim memory when --memory is given (one embedder per run), otherwise None."""
+    if not getattr(args, "memory", False):
+        return None
+    if not hasattr(args, "embedder"):
+        args.embedder = args.embedder_factory()
+    return ClaimMemory(path, args.embedder)
 
 
 def _make_agent(args: argparse.Namespace, store_path: Path) -> TriageAgent | None:
@@ -491,7 +525,8 @@ def _dispatch(
 def _run(args: argparse.Namespace, store: SQLiteEventStore, factory: DetectorFactory) -> int:
     agent = _make_agent(args, args.db)
     blobs = BlobStore(args.blobs)
-    deps = make_deps(store, blobs, args.config, _make_detector(args, factory), agent)
+    memory = _open_memory(args, MEMORY_PATH)
+    deps = make_deps(store, blobs, args.config, _make_detector(args, factory), agent, memory)
     claim_id = submit_claim(
         store, blobs, policy_id=args.policy, description=args.description, photo_paths=args.photos
     )
@@ -516,7 +551,12 @@ def _resume(args: argparse.Namespace, store: SQLiteEventStore, factory: Detector
         return 1
     agent = _make_agent(args, args.db)
     deps = make_deps(
-        store, BlobStore(args.blobs), args.config, _make_detector(args, factory), agent
+        store,
+        BlobStore(args.blobs),
+        args.config,
+        _make_detector(args, factory),
+        agent,
+        _open_memory(args, MEMORY_PATH),
     )
     process_claim(args.claim_id, deps)
     print(format_summary(fold(store.load(args.claim_id))))
@@ -589,7 +629,10 @@ def _review_claim(args: argparse.Namespace, store: SQLiteEventStore) -> int:
         return 2
     review = HumanReviewed(reviewer=args.reviewer, action=action, final_route=final, note=args.note)
     try:
-        seq = record_review(store, args.claim_id, review)
+        memory = _open_memory(args, MEMORY_PATH)
+        seq = record_review(
+            store, args.claim_id, review, memory=memory, photo_path=BlobStore(args.blobs).path
+        )
     except (ClaimNotFoundError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -709,8 +752,9 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     def make(case_dir: Path) -> PipelineDeps:
         store = SQLiteEventStore(case_dir / "claims.db")
         agent = _make_agent(args, case_dir / "claims.db") or StubTriageAgent()
+        memory = _open_memory(args, case_dir / "memory")  # one memory per case: no leaks
         agent_versions.add(agent.agent_version)
-        return make_deps(store, BlobStore(case_dir / "blobs"), args.config, detector, agent)
+        return make_deps(store, BlobStore(case_dir / "blobs"), args.config, detector, agent, memory)
 
     with tempfile.TemporaryDirectory() as workdir:
         results = run_triage_eval(cases, make, repo_root=Path.cwd(), workdir=Path(workdir))

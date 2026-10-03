@@ -182,9 +182,9 @@ something that already works.*
 *Add the conversation with the customer, and give the system a governed memory.*
 
 - [x] Multi-turn intake agent with guided photo capture: `claimlens intake`, pause and resume, photo coaching with retakes (M6a, ADR 0016); 3 live scripted customers complete intake, $0.18
-- [ ] Episodic memory (claim history, image similarity) and semantic memory (policies, similar claims)
-- [ ] Three Agent Skills (`SKILL.md`), each approved by you
-- [ ] Stretch: simulated claimant tests with pass^k
+- [x] Claim memory written by the workflow (LanceDB, provenance on the log); near-copy photos found by perceptual hash; `find_similar_claims` answers from memory (ADR 0017)
+- [x] Three Agent Skills (`SKILL.md`), approved by you; loaded on 86 of 150 golden claims; harmless stories fast-tracked 5 of 10 (was 3)
+- [x] Simulated customers with pass^k: pass^4 0.80 (target 0.70); weak spot: corrected dates
 
 ## M7 · Trust & governance (Dec 25 – Jan 4)
 

@@ -253,3 +253,10 @@ def test_the_gate_requires_the_full_golden_set() -> None:
     assert check_gate(partial, _card(), PRINTS, config) == [
         "scope: the scorecard covers 20 cases, the gate needs 150"
     ]
+
+
+def test_skills_and_customer_prompts_are_fingerprinted() -> None:
+    root = Path(__file__).resolve().parents[2]
+    prints = fingerprints(root, root / "evals" / "golden" / "v2" / "claims.jsonl")
+    assert "skills/glass-claims/SKILL.md" in prints
+    assert "config/intake.toml" in prints

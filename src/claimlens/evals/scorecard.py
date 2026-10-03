@@ -27,6 +27,8 @@ FINGERPRINTED: tuple[str, ...] = (
     "config/agents.toml",
     "prompts/triage/*.md",
     "prompts/judge/*.md",
+    "skills/*/SKILL.md",  # approved procedures change what the triage agent does
+    "config/intake.toml",
     "knowledge/policies/*.md",
 )
 

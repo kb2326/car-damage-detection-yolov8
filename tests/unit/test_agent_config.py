@@ -12,7 +12,7 @@ def test_repo_agent_config_loads() -> None:
     config = load_agent_config(ROOT / "config" / "agent.toml")
     assert config.version == "triage-agent-v1"
     assert config.tier == "strong"
-    assert (config.prompt_name, config.prompt_version) == ("triage", "v1")
+    assert (config.prompt_name, config.prompt_version) == ("triage", "v2")
     assert config.max_steps == 6
 
 
