@@ -47,13 +47,15 @@ class WebServices:
     intake: Callable[[], IntakeSessions] | None
     upload_dir: Path
     memory: ClaimMemory | None = None
+    read_only: bool = False  # the showcase: the store can never be written
+    transcript: list[dict[str, str]] = field(default_factory=list)  # the showcase's recorded chat
     _sessions: list[IntakeSessions] = field(default_factory=list)
 
     @contextmanager
     def open_store(self) -> Iterator[SQLiteEventStore]:
         """A store for one request: open and close it inside the endpoint body, never in a
         dependency (FastAPI may run a dependency and its endpoint on different threads)."""
-        store = SQLiteEventStore(self.db_path)
+        store = SQLiteEventStore(self.db_path, read_only=self.read_only)
         try:
             yield store
         finally:

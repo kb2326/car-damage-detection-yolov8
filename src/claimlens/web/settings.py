@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 
@@ -17,7 +18,14 @@ class WebSettings(Frozen):
     poll_seconds: float = Field(default=1.0, gt=0, le=10)
     # Host names the app answers to; anything else (DNS rebinding) is refused.
     allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost")
+    showcase: bool = False  # the public read-only demo: no writes, recorded samples
 
 
 def load_web_settings(path: Path) -> WebSettings:
-    return WebSettings.model_validate(tomllib.loads(path.read_text(encoding="utf-8")))
+    """From config/web.toml; CLAIMLENS_ALLOWED_HOSTS (comma-separated) replaces the host list,
+    for the public showcase's address."""
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    hosts = os.environ.get("CLAIMLENS_ALLOWED_HOSTS", "")
+    if hosts.strip():
+        data["allowed_hosts"] = tuple(h.strip() for h in hosts.split(",") if h.strip())
+    return WebSettings.model_validate(data)

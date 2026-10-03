@@ -113,3 +113,8 @@ figcaption { font-size: 13px; color: var(--muted); padding-top: 6px; }
 .audit summary { cursor: pointer; }
 .events { font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .st-running .dot { animation: none; } }
+
+/* showcase banner */
+.showcase { background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-bottom: 1px solid var(--rule); padding: 10px 20px; font-size: 14px; }
+.showcase p { max-width: 1100px; margin: 0 auto; }

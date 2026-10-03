@@ -7,15 +7,26 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+  {% set showcase = request.app.state.services.settings.showcase %}
   <header class="top">
     <a class="brand" href="/">Claim<span>Lens</span></a>
     <nav aria-label="Main">
-      <a href="/">File a claim</a>
+      <a href="/">{% if showcase %}Sample chat{% else %}File a claim{% endif %}</a>
       <a href="/claims">Claims</a>
       <a href="/docs">API</a>
     </nav>
-    <span class="local">Local prototype · fictional policies</span>
+    <span class="local">{% if showcase %}Showcase{% else %}Local prototype{% endif %} · fictional policies</span>
   </header>
+  {% if showcase %}
+  <aside class="showcase" aria-label="About this showcase">
+    <p><strong>Showcase.</strong> Sample claims recorded on 3 October 2026 with the real models and
+      agents; nothing here can be changed. Policies and claims are fictional.
+      <a href="https://github.com/kb2326/claimlens">How it is built (GitHub)</a> ·
+      <a href="https://github.com/kb2326/claimlens/blob/main/docs/system-card.md">System card</a> ·
+      <a href="https://github.com/kb2326/claimlens/blob/main/docs/model-card.md">Model card</a> ·
+      <a href="https://github.com/kb2326/claimlens/blob/main/showcase/CREDITS.md">Photo credits</a></p>
+  </aside>
+  {% endif %}
   <main class="page">{% block main %}{% endblock %}</main>
   {% block scripts %}{% endblock %}
 </body>

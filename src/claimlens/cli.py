@@ -274,6 +274,10 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--stub-agent", action="store_true", help="use the rule-based stub agent")
     serve.add_argument("--no-memory", action="store_true", help="do not use the claim memory")
     serve.add_argument(
+        "--showcase", action="store_true", help="the public read-only demo of recorded claims"
+    )
+    serve.add_argument("--data", type=Path, default=None, help="showcase data folder")
+    serve.add_argument(
         "--llm-daily-cap", type=float, default=None, help="override the daily LLM cap in USD"
     )
     run = sub.add_parser("run", help="submit a claim and process it")
