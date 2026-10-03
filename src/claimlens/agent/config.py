@@ -23,6 +23,7 @@ class AgentConfig(Frozen):
     max_seconds: float = Field(gt=0)
     max_tokens: int = Field(gt=0)
     max_repairs: int = Field(ge=0, le=3)
+    skills_dir: str = ""  # empty: no skills
 
     @field_validator("tools")
     @classmethod
@@ -42,5 +43,6 @@ def load_agent_config(path: Path) -> AgentConfig:
         prompt_version=version,
         profile=data["profile"],
         tools=tuple(data["tools"]),
+        skills_dir=data.get("skills_dir", ""),
         **data["limits"],
     )

@@ -1,7 +1,8 @@
 # The LLM triage agent (spec docs/specs/2026-10-02-m5a-triage-agent-design.md).
 version = "triage-agent-v1"
 tier = "strong"            # a tier from config/llm.toml
-prompt = "triage/v1"       # prompts/triage/v1.md
+prompt = "triage/v2"       # prompts/triage/v2.md (v1 + approved procedures)
+skills_dir = "skills"      # Agent Skills; only owner-approved ones are loaded
 profile = "triage"         # a profile from config/agents.toml
 
 # Read-only tools only. The agent advises; it never writes, re-runs models or pays.

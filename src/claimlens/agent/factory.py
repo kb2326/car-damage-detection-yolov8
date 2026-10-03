@@ -17,6 +17,7 @@ from claimlens.mcp.policy_admin import build_policy_admin
 from claimlens.mcp.profiles import load_profiles
 from claimlens.memory.index import ClaimMemory
 from claimlens.policy import load_policies
+from claimlens.skills import load_skills
 
 
 def build_llm_agent(
@@ -54,4 +55,5 @@ def build_llm_agent(
         servers,
         policies,
         get_index,
+        skills=load_skills(repo_root / config.skills_dir) if config.skills_dir else {},
     )
