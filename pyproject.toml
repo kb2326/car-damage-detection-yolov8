@@ -45,6 +45,7 @@ review = [
 ]
 agent = [
   "langgraph>=1.2,<2",
+  "langgraph-checkpoint-sqlite>=3.1,<4",
 ]
 tracing = [
   "openinference-instrumentation-langchain>=0.1.78",

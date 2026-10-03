@@ -1,0 +1,17 @@
+# The intake agent (spec docs/specs/2026-10-03-m6a-intake-agent-design.md).
+version = "intake-agent-v1"
+tier = "fast"
+prompt = "intake/v1"
+profile = "intake"
+photo_kinds = ["overview", "damage_closeup", "plate"]
+
+[limits]
+max_turns = 30          # customer turns per session
+max_steps_per_turn = 4  # model calls between two customer turns
+max_retakes = 2         # retakes per photo kind after the first try
+max_tokens = 400
+
+[photo_coaching] # intake only; the pipeline's quality gate is unchanged
+# Golden photos the pipeline accepts: darkest mean brightness 72, least sharp edge variance 250.
+min_brightness = 40
+min_edge_variance = 100
