@@ -59,6 +59,9 @@ class LangGraphTriageAgent:
         """Raises on any failure; the workflow records it and rule R2 routes to a person."""
         record = self._policies.get_record(state.policy_id)
         wording = None if record is None else record.wording
+        if wording is not None:
+            # Fail before any model call if the policy wording cannot be searched.
+            _ = self._index() if callable(self._index) else self._index
         evidence = render_evidence(state)
         allow = [t for t in self._config.tools if wording is not None or t != SEARCH]
         tools = load_tools(

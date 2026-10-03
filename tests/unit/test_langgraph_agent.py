@@ -177,3 +177,30 @@ def test_build_llm_agent_wires_config_prompt_and_tools(tmp_path: Path, index: Po
     agent.recommend(_state())
     assert {t.name for t in fake.calls[0]["tools"]} == {*CONFIG.tools, SUBMIT}
     assert fake.calls[0]["max_tokens"] == CONFIG.max_tokens
+
+
+def test_a_failed_policy_search_cannot_end_in_fast_track(tmp_path: Path) -> None:
+    """Review C1: the index is missing, the search errors, and the model submits FAST_TRACK."""
+
+    def missing() -> PolicyIndex:
+        raise IndexMissingError("no policy index: run `claimlens knowledge build`")
+
+    fast = {
+        "route_suggestion": "FAST_TRACK",
+        "confidence": "high",
+        "rationale": "Looks fine.",
+        "evidence_ids": ["E1"],
+        "policy_citations": [],
+        "open_questions": [],
+    }
+    agent, _, _ = _agent(
+        tmp_path,
+        [
+            _call("search_policy_clauses", {"query": "racing exclusion"}, "t1"),
+            _call(SUBMIT, fast, "t2"),
+            _call(SUBMIT, fast, "t3"),
+        ],
+        missing,
+    )
+    with pytest.raises((AgentFailed, IndexMissingError)):
+        agent.recommend(_state(description="Crashed during a track day race."))

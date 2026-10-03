@@ -71,14 +71,25 @@ def build_graph(
             if c["id"] != submit["id"]
         ]
         problems = check(submit["args"])
+        tool_failed = any(
+            isinstance(m, ToolMessage) and m.status == "error" and m.name != SUBMIT
+            for m in state["messages"]
+        )
+        if tool_failed and submit["args"].get("route_suggestion") == "FAST_TRACK":
+            # A failed lookup means something went unchecked, so a person must look.
+            problems.append(
+                "a tool failed during this review, so FAST_TRACK is not allowed; "
+                "recommend ADJUSTER_REVIEW and say what could not be checked"
+            )
         if not problems:
-            accepted = ToolMessage(content="Accepted.", tool_call_id=submit["id"])
+            accepted = ToolMessage(content="Accepted.", tool_call_id=submit["id"], name=SUBMIT)
             return {"messages": [*skipped, accepted], "recommendation": dict(submit["args"])}
         if state["repairs"] >= config.max_repairs:
             raise AgentFailed("recommendation rejected: " + "; ".join(problems))
         rejected = ToolMessage(
             content="Rejected: " + "; ".join(problems) + ". Fix this and submit again.",
             tool_call_id=submit["id"],
+            name=SUBMIT,
             status="error",
         )
         return {"messages": [*skipped, rejected], "repairs": state["repairs"] + 1}

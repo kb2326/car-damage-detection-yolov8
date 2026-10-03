@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -64,6 +64,7 @@ class AgentSummary:
     cost_mean_usd: float
     cost_max_usd: float
     agent_failures: dict[str, int]
+    rules: dict[str, int]
 
 
 def agent_summary(results: Sequence[CaseResult]) -> AgentSummary:
@@ -82,6 +83,7 @@ def agent_summary(results: Sequence[CaseResult]) -> AgentSummary:
         cost_mean_usd=sum(costs) / n,
         cost_max_usd=max(costs, default=0.0),
         agent_failures=dict(sorted(failures.items())),
+        rules=dict(sorted(Counter(r.rule_id for r in results if r.rule_id).items())),
     )
 
 
@@ -265,6 +267,9 @@ def render_report(
             f"${agent.cost_max_usd:.3f} |",
             f"| Total cost of this run | ${agent.cost_total_usd:.2f} |",
             f"| Agent failures (sent to a person) | {failures} |",
+            "| Decided by rule | "
+            + (", ".join(f"{k}: {v}" for k, v in agent.rules.items()) or "none")
+            + " |",
         ]
         held = [
             r

@@ -79,11 +79,12 @@ def test_tool_call_then_submit(tmp_path: Path) -> None:
 
 
 def test_a_tool_error_goes_back_to_the_model(tmp_path: Path) -> None:
+    escalate = {**ANSWER, "route_suggestion": "ADJUSTER_REVIEW", "rationale": "Search failed."}
     out, fake = _run(
         tmp_path,
-        [_call("search_policy_clauses", {"query": "boom"}, "t1"), _call(SUBMIT, ANSWER, "t2")],
+        [_call("search_policy_clauses", {"query": "boom"}, "t1"), _call(SUBMIT, escalate, "t2")],
     )
-    assert out == ANSWER
+    assert out == escalate
     result = fake.calls[1]["messages"][-1].tool_results[0]
     assert result.is_error
     assert "index offline" in result.content
@@ -167,3 +168,20 @@ def test_time_limit(tmp_path: Path) -> None:
             [_call("search_policy_clauses", {"query": "x"}, "t1"), _call(SUBMIT, ANSWER, "t2")],
             clock=lambda: next(ticks),
         )
+
+
+def test_fast_track_is_refused_after_a_tool_error(tmp_path: Path) -> None:
+    fast = {**ANSWER, "route_suggestion": "FAST_TRACK"}
+    escalate = {**ANSWER, "route_suggestion": "ADJUSTER_REVIEW", "rationale": "Search failed."}
+    out, fake = _run(
+        tmp_path,
+        [
+            _call("search_policy_clauses", {"query": "boom"}, "t1"),
+            _call(SUBMIT, fast, "t2"),
+            _call(SUBMIT, escalate, "t3"),
+        ],
+    )
+    assert out == escalate
+    rejected = fake.calls[2]["messages"][-1].tool_results[0]
+    assert rejected.is_error
+    assert "a tool failed" in rejected.content

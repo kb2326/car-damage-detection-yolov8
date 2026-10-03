@@ -317,3 +317,28 @@ def test_report_explains_claims_the_agent_held_back() -> None:
         r"| a | FAST_TRACK | R7 | FAST_TRACK, medium | Damage \| matches the story. "
         r"| Was the second photo \| taken the same day? |"
     ) in report
+
+
+def test_agent_section_counts_which_rule_decided() -> None:
+    from claimlens.evals.triage import agent_summary
+
+    results = [
+        CaseResult("a", "s", Route.FAST_TRACK, Route.FAST_TRACK, rule_id="R9"),
+        CaseResult("b", "s", Route.FAST_TRACK, Route.ADJUSTER_REVIEW, rule_id="R7"),
+        CaseResult("c", "s", Route.FAST_TRACK, Route.ADJUSTER_REVIEW, rule_id="R7"),
+    ]
+    summary = agent_summary(results)
+    assert summary.rules == {"R7": 2, "R9": 1}
+    case = GoldenClaim(
+        case_id="a",
+        scenario="s",
+        policy_id="P-1001",
+        description="",
+        photos=("x.jpg",),
+        expected_route=Route.FAST_TRACK,
+        label_source="t",
+    )
+    meta = ReportMeta("g.jsonl", "m", "agent", "p", date(2026, 10, 3))
+    metrics = compute_triage_metrics([(r.expected, r.predicted) for r in results])
+    report = render_report([case], results, metrics, meta, agent=summary)
+    assert "| Decided by rule | R7: 2, R9: 1 |" in report

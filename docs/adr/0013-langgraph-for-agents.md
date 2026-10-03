@@ -42,6 +42,10 @@ What had to stay true whatever the framework:
   wording; evidence is cited by labels (`E1`) that code maps back to event ids.
 - **Limits:** 6 model calls, 90 seconds, 1 repair, 700 output tokens per call, and the gateway's
   caps ($0.10 per claim, raised from $0.03 by the owner for a tool-using agent).
+- **A failed tool blocks a fast-track:** if any tool call failed during the review (for example
+  the policy index is missing), `finalize` refuses `FAST_TRACK`, because something went
+  unchecked. The agent also opens the policy index before the first model call, so a missing
+  index fails the claim to a person at once.
 - **Any failure raises,** the workflow records a `StageFailed`, and rule R2 sends the claim to a
   person. No new routing code, and no failure can fast-track a claim.
 - **No checkpointer in M5a.** A triage run is short and has no human pause. Checkpoints and
@@ -77,5 +81,7 @@ What had to stay true whatever the framework:
   cost.
 - **The workflow retries a failed stage once,** so a failing agent can run twice. Spend stays
   bounded by the claim cap, and the response cache answers identical first calls.
+- **Tools run with `anyio.run` inside LangGraph's sync nodes.** That works for today's sync
+  callers. If M6 runs the graph asynchronously, the adapter must switch to async tools.
 - **Replacing the framework** means rewriting `agent/graph.py` and `agent/chat_model.py`; the
   gateway, tools adapter, evidence, checks and workflow do not depend on LangGraph.
