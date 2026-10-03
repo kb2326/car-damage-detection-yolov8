@@ -31,3 +31,10 @@ light = ["back_left_light", "back_light", "back_right_light", "front_left_light"
 glass = ["back_glass", "front_glass"]
 mirror = ["left_mirror", "right_mirror"]
 wheel = ["wheel"]
+
+[part_groups.damage_parts]
+# A damage type can only be fused to these groups; unlisted types (dent, scratch, crack, smash)
+# can be on any part. Stops impossible pairs such as a flat tyre "on the front bumper".
+tire_flat = ["wheel"]
+lamp_broken = ["light"]
+glass_shatter = ["glass", "light", "mirror"]
