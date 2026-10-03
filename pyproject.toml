@@ -100,7 +100,7 @@ ignore_missing_imports = true
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
-module = ["cv2", "cv2.*", "torch", "torch.*", "transformers", "transformers.*", "fiftyone", "fiftyone.*"]
+module = ["cv2", "cv2.*", "torch", "torch.*", "transformers", "transformers.*", "fiftyone", "fiftyone.*", "playwright", "playwright.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
