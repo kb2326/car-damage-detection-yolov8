@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 from langgraph.types import Command
 
@@ -23,6 +22,32 @@ from claimlens.intake_agent.graph import IntakeState, initial_state
 from claimlens.workflow import PipelineDeps, process_claim
 
 KICKOFF = "A customer has opened a new claim chat. Greet them and ask for their policy number."
+_NAMESPACE = uuid.UUID("6f1c2a4e-9d1b-4c55-8a37-2f0e4b9c7d21")  # claim ids derived from sessions
+
+
+def policy_found_only(result: str) -> str:
+    """What the intake agent may know about a policy: only whether it exists. Cover details
+    (status, collision cover, deductible) stay out of the conversation."""
+    try:
+        found = bool(json.loads(result).get("found"))
+    except (ValueError, AttributeError):
+        found = False
+    return json.dumps({"found": found})
+
+
+def keep_photo(folder: Path) -> Callable[[Path], Path]:
+    """Copy each photo into `folder` under its content hash, so the customer can move or
+    delete the original while the conversation is paused."""
+
+    def stage(path: Path) -> Path:
+        data = path.read_bytes()
+        folder.mkdir(parents=True, exist_ok=True)
+        kept = folder / f"{hashlib.sha256(data).hexdigest()}{path.suffix.lower()}"
+        if not kept.exists():
+            kept.write_bytes(data)
+        return kept
+
+    return stage
 
 
 @dataclass(frozen=True)
@@ -67,6 +92,20 @@ class IntakeSessions:
                 return AgentTurn(session_id, value["message"], value["photo_kind"], None)
         return None
 
+    def stalled(self, session_id: str) -> bool:
+        """True when a step failed (e.g. the LLM was unavailable) after the customer's reply was
+        saved: the session has work left but is not waiting for the customer."""
+        snapshot = self._graph.get_state(self._config(session_id))
+        return bool(snapshot.next) and self.pending(session_id) is None
+
+    def resume(self, session_id: str) -> AgentTurn | None:
+        """The turn to show when a customer comes back: the waiting question, or a stalled
+        session restarted from its last saved step. None if finished or unknown."""
+        waiting = self.pending(session_id)
+        if waiting is not None or not self.stalled(session_id):
+            return waiting
+        return self._turn(session_id, self._graph.invoke(None, self._config(session_id)))
+
     def reply(self, session_id: str, text: str, photo: Path | None = None) -> AgentTurn:
         if self.pending(session_id) is None:
             raise ValueError(f"no open intake session {session_id!r}")
@@ -77,7 +116,7 @@ class IntakeSessions:
     def open_sessions(self) -> list[str]:
         saver = self._graph.checkpointer
         ids = {c.config["configurable"]["thread_id"] for c in saver.list(None)}
-        return sorted(i for i in ids if self.pending(i) is not None)
+        return sorted(i for i in ids if self.pending(i) is not None or self.stalled(i))
 
 
 def transcript_sha256(transcript: Sequence[dict[str, str]]) -> str:
@@ -96,28 +135,34 @@ def pipeline_submitter(
         kinds = [k for k in config.photo_kinds if k in photos]
         kinds += sorted(k for k in photos if k not in config.photo_kinds)
         facts = state["facts"]
-        claim_id: UUID = submit_claim(
-            deps.store,
-            deps.blobs,
-            policy_id=facts.get("policy_id", "unknown"),
-            description=facts.get("what_happened", ""),
-            photo_paths=[Path(photos[k]) for k in kinds],
-            allow_no_photos=True,
-        )
-        deps.store.append(
-            claim_id,
-            IntakeCompleted(
-                session_id=state["session_id"],
-                facts=dict(facts),
-                photo_kinds={kind: f"p{n}" for n, kind in enumerate(kinds, start=1)},
-                photo_gaps=dict(state["gaps"]),
-                turns=state["turns"],
-                retakes=sum(state["retakes"].values()),
-                transcript_sha256=transcript_sha256(state["transcript"]),
-            ),
-            Actor(kind=ActorKind.AGENT, name=config.version),
-        )
-        if process:
+        # One claim per session: a hand-over that is retried after a failure files nothing new.
+        claim_id = uuid.uuid5(_NAMESPACE, state["session_id"])
+        if claim_id not in deps.store.claim_ids():
+            submit_claim(
+                deps.store,
+                deps.blobs,
+                policy_id=facts.get("policy_id", "unknown"),
+                description=facts.get("what_happened", ""),
+                photo_paths=[Path(photos[k]) for k in kinds],
+                claim_id=claim_id,
+                allow_no_photos=True,
+            )
+        if not any(e.type == "IntakeCompleted" for e in deps.store.load(claim_id)):
+            deps.store.append(
+                claim_id,
+                IntakeCompleted(
+                    session_id=state["session_id"],
+                    facts=dict(facts),
+                    photo_kinds={kind: f"p{n}" for n, kind in enumerate(kinds, start=1)},
+                    photo_gaps=dict(state["gaps"]),
+                    turns=state["turns"],
+                    retakes=sum(state["retakes"].values()),
+                    transcript_sha256=transcript_sha256(state["transcript"]),
+                    handover=state.get("handover", ""),
+                ),
+                Actor(kind=ActorKind.AGENT, name=config.version),
+            )
+        if process:  # process_claim is idempotent: a retry finishes what is missing
             process_claim(claim_id, deps)
         return str(claim_id)
 
@@ -160,7 +205,7 @@ def build_intake(
     (get_policy,) = load_tools([server], allow=["get_policy"], bound={})
 
     def lookup(policy_id: str) -> str:
-        return str(get_policy.invoke({"policy_id": policy_id}))
+        return policy_found_only(str(get_policy.invoke({"policy_id": policy_id})))
 
     model = GatewayChatModel(
         gateway=gateway or build_gateway(config_dir, repo_root),
@@ -177,5 +222,6 @@ def build_intake(
         pipeline_submitter(deps_factory, config, process=process),
         today,
         checkpointer=SqliteSaver(conn),
+        stage=keep_photo(checkpoint_path.parent / "intake-photos"),
     )
     return IntakeSessions(graph, system=prompt.text)

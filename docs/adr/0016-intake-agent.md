@@ -41,12 +41,23 @@ roadside, or has to find the licence plate).
     a sha256 of the transcript. The transcript text stays out of the log.
   - The triage agent's evidence summary shows the facts as data.
   - No rule changed.
-- **No promises:** the prompt forbids statements about cover, cost or outcome, and code replaces
-  any outgoing message that matches "you're covered", "approved", "will be paid", "we'll pay" or
-  "guarantee" with a neutral line.
-- **Limits:** 30 customer turns (then the claim is filed with what was collected), 4 model calls
-  per turn (then a fallback question), and a per-session spending cap (claim id
-  `intake-<session>`).
+- **No promises, no denials, no prices:**
+  - The prompt forbids statements about cover, cost or outcome.
+  - In code, any outgoing message mentioning cover, approval, acceptance, rejection, denial,
+    excess or deductible, a dollar amount, payment, or a guarantee is **never sent**; the agent is
+    told to rephrase.
+  - The agent learns only whether a policy exists, never its status, cover or deductible.
+- **Limits:**
+  - 30 customer turns: the claim is then filed with what was collected, and `handover` records why;
+  - 4 model calls per turn: then a fallback question;
+  - a per-session spending cap (claim id `intake-<session>`): reaching it also hands the claim to
+    a person.
+- **Robustness:**
+  - Each accepted photo is copied (content-addressed) when it arrives, and the copy is what was
+    checked and what is filed. Moving the original during a pause does not matter.
+  - The claim id is derived from the session id, so a retried hand-over never files twice.
+  - A session that failed mid-step (for example the LLM was unavailable) stays listed and resumes
+    from its last saved step. The terminal tells the customer their answers are saved.
 - **Interface:** `claimlens intake` in the terminal: `/photo <path>`, `/quit` to pause,
   `--session` to resume, `--list` to see paused sessions. `IntakeSessions` (start, reply, pending,
   open sessions) is the reusable front end for the M8 web app.
@@ -55,7 +66,9 @@ roadside, or has to find the licence plate).
 
 - **Live check (Haiku, 2026-10-03):** three scripted customers (simple, vague, driving for work)
   each completed intake in 9 to 13 turns, with every required fact and all three photos, and
-  `driving_for_work` correct. Cost: $0.18 for 61 calls.
+  `driving_for_work` correct. Cost: $0.18 for 61 calls. After the stricter promise filter, the same
+  three took 11 to 17 turns ($0.21): blocked messages make the agent rephrase, which costs a turn
+  or two.
 - The triage agent now sees facts such as "driving for work: yes" directly, instead of having to
   find them in free text.
 - **Limits:**

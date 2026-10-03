@@ -25,9 +25,12 @@ def coach_photo(path: Path, config: IntakeConfig) -> PhotoCheck:
     basic = check_quality(path, QualityConfig())
     if not basic.ok:
         return PhotoCheck(ok=False, reason=basic.reason)
-    with Image.open(path) as image:
-        grey = image.convert("L")
-    grey.thumbnail((512, 512))
+    try:
+        with Image.open(path) as image:
+            grey = image.convert("L")  # decodes the whole image: a cut-off file fails here
+        grey.thumbnail((512, 512))
+    except (OSError, ValueError):
+        return PhotoCheck(ok=False, reason="not a readable image")
     if ImageStat.Stat(grey).mean[0] < config.min_brightness:
         return PhotoCheck(ok=False, reason="too dark")
     edges = grey.filter(ImageFilter.FIND_EDGES)

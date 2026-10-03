@@ -34,34 +34,48 @@ def run_chat(
     session_id: str | None = None,
 ) -> AgentTurn | None:
     """Talk until the claim is filed or the customer pauses. Returns the last turn."""
+    from claimlens.llm.types import LLMError
+
     if session_id is None:
         turn = sessions.start()
     else:
-        pending = sessions.pending(session_id)
-        if pending is None:
+        resumed = sessions.resume(session_id)
+        if resumed is None:
             write(f"No open intake session {session_id}. Use --list to see paused sessions.")
             return None
-        turn = pending
-    while True:
-        write(f"ClaimLens: {turn.message}")
-        if turn.claim_id is not None:
-            return turn
+        turn = resumed
+    write(f"ClaimLens: {turn.message}")
+    while turn.claim_id is None:
         try:
             line = read().strip()
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
             line = "/quit"
+        if not line:
+            continue  # an empty line costs nothing
         if line == "/quit":
             write(f"Paused. Resume with: claimlens intake --session {turn.session_id}")
             return turn
         photo: Path | None = None
         text = line
-        if line.startswith("/photo"):
+        if line == "/photo" or line.startswith("/photo "):
             photo = _photo_path(line[len("/photo") :])
             if not photo.is_file():
                 write(f"ClaimLens: I can't find that file ({photo}). Please check the path.")
                 continue
             text = ""
-        turn = sessions.reply(turn.session_id, text, photo)
+        elif line.startswith("/"):
+            write("Unknown command. Use /photo <path> to send a photo or /quit to pause.")
+            continue
+        try:
+            turn = sessions.reply(turn.session_id, text, photo)
+        except LLMError:
+            write(
+                "ClaimLens: Sorry, something went wrong on our side. Your answers are saved. "
+                f"Please try again later with: claimlens intake --session {turn.session_id}"
+            )
+            return turn
+        write(f"ClaimLens: {turn.message}")
+    return turn
 
 
 def run_intake_command(args: argparse.Namespace, factory: IntakeFactory) -> int:

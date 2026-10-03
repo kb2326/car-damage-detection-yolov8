@@ -119,6 +119,7 @@ class IntakeCompleted(Payload):
     turns: int
     retakes: int
     transcript_sha256: str
+    handover: str = ""  # why intake ended early (turn limit, spending cap), if it did
 
 
 class HumanReviewed(Payload):

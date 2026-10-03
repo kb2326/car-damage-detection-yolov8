@@ -21,17 +21,28 @@ from langgraph.types import interrupt
 
 from claimlens.intake_agent.config import IntakeConfig
 from claimlens.intake_agent.facts import FACTS, missing, validate_fact
-from claimlens.intake_agent.photos import coach_photo
+from claimlens.intake_agent.photos import PhotoCheck, coach_photo
+from claimlens.llm.types import BudgetExceeded
 
 ASK, PHOTO, FINISH = "ask_customer", "request_photo", "finish_intake"
 FACT, LOOKUP = "record_fact", "lookup_policy"
 CUSTOMER_FACING = {ASK, PHOTO}
 FALLBACK = "Could you tell me a little more, please?"
-NEUTRAL = "Thank you, I've noted that. A claims handler will review everything and get back to you."
-# The intake agent must never promise cover, payment or an outcome.
+MAX_MESSAGE = 2000  # characters of one customer reply passed to the model
+# The intake agent must never promise or deny cover, name a price, or predict the outcome.
+# A message that matches is not sent; the agent is told to rephrase.
 NO_PROMISES = re.compile(
-    r"you(?:'re| are) covered|\bapproved\b|will be paid|we(?:'ll| will) pay|guarantee",
+    r"\bcover(?:ed|s|age)?\b|\bapprov\w*|\baccepted\b|\breject\w*|\bden(?:y|ied|ial)\b"
+    r"|\bdeclin\w*|\bexcess\b|\bdeductible\b|\$\s?\d|\bpa(?:y|id|yment|yout)s?\b|guarantee",
     re.IGNORECASE,
+)
+REPHRASE = (
+    "Message not sent: do not talk about cover, approval, prices, payment or the outcome. "
+    "A claims handler decides. Rephrase and continue collecting facts and photos."
+)
+HANDED_OVER = (
+    "Thank you. I'll pass what we have to a claims handler, who will be in touch. "
+    "Your claim number is {claim_id}."
 )
 _TAG = re.compile(r"<\s*/?\s*customer_message[^>]*>", re.IGNORECASE)
 
@@ -89,6 +100,7 @@ class IntakeState(MessagesState):
     claim_id: str | None
     forced: bool
     session_id: str
+    handover: str  # why the claim was handed over early ("" when complete)
 
 
 def initial_state(system: str, kickoff: str, session_id: str = "") -> dict[str, Any]:
@@ -108,11 +120,16 @@ def initial_state(system: str, kickoff: str, session_id: str = "") -> dict[str, 
         "claim_id": None,
         "forced": False,
         "session_id": session_id,
+        "handover": "",
     }
 
 
-def _speak(text: str) -> str:
-    return NEUTRAL if NO_PROMISES.search(text) else text
+def promises(text: str) -> bool:
+    return bool(NO_PROMISES.search(text.replace("\u2019", "'")))  # a curly apostrophe too
+
+
+def _keep(path: Path) -> Path:
+    return path
 
 
 def build_intake_graph(
@@ -122,7 +139,9 @@ def build_intake_graph(
     submit: Callable[[IntakeState], str],
     today: Callable[[], date],
     checkpointer: Any = None,
+    stage: Callable[[Path], Path] = _keep,
 ) -> Any:
+    """`stage` copies an accepted photo somewhere safe, so moving the original later is fine."""
     settings = config  # LangGraph passes the run's settings to a node parameter named `config`
 
     def agent(state: IntakeState, config: RunnableConfig) -> dict[str, Any]:
@@ -133,7 +152,16 @@ def build_intake_graph(
         # Each session spends against its own cap (the gateway's per-claim cap).
         session = config.get("configurable", {}).get("thread_id")
         session_model = model.model_copy(update={"claim_id": f"intake-{session}"})
-        reply = session_model.bind_tools(TOOLS).invoke(state["messages"])
+        try:
+            reply = session_model.bind_tools(TOOLS).invoke(state["messages"])
+        except BudgetExceeded:
+            # Out of budget: hand what we have to a person instead of failing.
+            handover = {"name": FINISH, "args": {"summary": ""}, "id": f"handover-{n}"}
+            return {
+                "messages": [AIMessage(content="", tool_calls=[handover])],
+                "forced": True,
+                "handover": "spending cap reached",
+            }
         if not reply.tool_calls:  # plain text is treated as a question to the customer
             text = str(reply.content).strip() or FALLBACK
             call = {"name": ASK, "args": {"message": text}, "id": f"text-{n}"}
@@ -187,7 +215,7 @@ def build_intake_graph(
         call = state["pending"]
         assert call is not None
         if state["turns"] >= config.max_turns:
-            return {"forced": True}
+            return {"forced": True, "handover": "turn limit reached"}
         kind = call["args"].get("kind") if call["name"] == PHOTO else None
         if kind is not None and kind not in config.photo_kinds:
             kinds = ", ".join(config.photo_kinds)
@@ -195,17 +223,24 @@ def build_intake_graph(
                 "messages": [_error(call["id"], call["name"], f"unknown photo kind; use {kinds}")],
                 "pending": None,
             }
-        message = _speak(str(call["args"].get("message", "")).strip() or FALLBACK)
+        message = str(call["args"].get("message", "")).strip() or FALLBACK
+        if promises(message):
+            return {"messages": [_error(call["id"], call["name"], REPHRASE)], "pending": None}
         reply = interrupt({"message": message, "photo_kind": kind})
-        text = _TAG.sub("", str(reply.get("text", ""))).strip()
+        text = _TAG.sub("", str(reply.get("text", ""))).strip()[:MAX_MESSAGE]
         photo = reply.get("photo")
         photos, gaps, retakes = dict(state["photos"]), dict(state["gaps"]), dict(state["retakes"])
         lines = [f"<customer_message>{text}</customer_message>"]
         if photo:
             target = kind or f"extra_{len(photos) + 1}"
-            check = coach_photo(Path(str(photo)), config)
+            try:
+                kept = stage(Path(str(photo)))  # coach the kept copy, not the original
+                check = coach_photo(kept, config)
+            except OSError:
+                kept, check = Path(str(photo)), PhotoCheck(ok=False, reason="not a readable image")
             if check.ok:
-                photos[target] = str(photo)
+                photos[target] = str(kept)
+                gaps.pop(target, None)
                 lines.append(f"Photo received for {target}: accepted.")
             elif kind is None:
                 lines.append(
@@ -250,10 +285,13 @@ def build_intake_graph(
             text = "Cannot finish yet. Still missing: " + ", ".join(need)
             return {"messages": [_error(call["id"], call["name"], text)], "pending": None}
         claim_id = submit(state)
-        outgoing = (
-            f"Thank you, that's everything I need. Your claim number is {claim_id}. "
-            "A claims handler will review it and be in touch."
-        )
+        if state["forced"]:
+            outgoing = HANDED_OVER.format(claim_id=claim_id)
+        else:
+            outgoing = (
+                f"Thank you, that's everything I need. Your claim number is {claim_id}. "
+                "A claims handler will review it and be in touch."
+            )
         done = ToolMessage(
             f"Submitted as claim {claim_id}.", tool_call_id=call["id"], name=call["name"]
         )

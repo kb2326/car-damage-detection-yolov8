@@ -16,7 +16,6 @@ from claimlens.intake_agent.graph import (
     ASK,
     FACT,
     FINISH,
-    NEUTRAL,
     PHOTO,
     IntakeState,
     build_intake_graph,
@@ -252,9 +251,15 @@ def test_an_unknown_policy_is_refused(tmp_path: Path) -> None:
     assert "policy_id" not in h.graph.get_state(h.config).values["facts"]
 
 
-def test_promises_are_replaced_with_a_neutral_line(tmp_path: Path) -> None:
-    h = Harness(tmp_path, [call(ASK, {"message": "Good news, you are covered!"}, "a1")])
-    assert asked(h.start())["message"] == NEUTRAL
+def test_a_promise_is_never_sent(tmp_path: Path) -> None:
+    h = Harness(
+        tmp_path,
+        [
+            call(ASK, {"message": "Good news, you are covered!"}, "a1"),
+            call(ASK, {"message": "When did it happen?"}, "a2"),
+        ],
+    )
+    assert asked(h.start())["message"] == "When did it happen?"
 
 
 def test_the_turn_limit_forces_a_finish(tmp_path: Path) -> None:

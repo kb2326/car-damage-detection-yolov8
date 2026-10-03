@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from claimlens.agent.tools import load_tools
-from claimlens.intake_agent.graph import ASK, NEUTRAL, NO_PROMISES, TOOLS
+from claimlens.intake_agent.graph import ASK, NO_PROMISES, TOOLS
 from claimlens.mcp.claims_system import build_claims_system
 from claimlens.mcp.profiles import load_profiles
 from tests.mcp_helpers import MemoryAudit
@@ -58,8 +58,11 @@ def test_the_intake_profile_cannot_read_claim_history(tmp_path: Path) -> None:
 )
 def test_promises_never_reach_the_customer(tmp_path: Path, promise: str) -> None:
     assert NO_PROMISES.search(promise)
-    h = Harness(tmp_path, [call(ASK, {"message": promise}, "a1")])
-    assert asked(h.start())["message"] == NEUTRAL
+    h = Harness(
+        tmp_path,
+        [call(ASK, {"message": promise}, "a1"), call(ASK, {"message": "Where was it?"}, "a2")],
+    )
+    assert asked(h.start())["message"] == "Where was it?"
 
 
 @pytest.mark.parametrize(
