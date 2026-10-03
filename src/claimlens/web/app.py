@@ -8,10 +8,12 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from claimlens.web.services import WebServices
 
 HERE = Path(__file__).parent
+templates = Jinja2Templates(directory=HERE / "templates")  # autoescapes .html
 
 
 def get_services(request: Request) -> WebServices:
@@ -20,7 +22,7 @@ def get_services(request: Request) -> WebServices:
 
 
 def create_app(services: WebServices) -> FastAPI:
-    from claimlens.web.routers import claims, intake, review
+    from claimlens.web.routers import claims, intake, pages, review
 
     app = FastAPI(
         title="ClaimLens",
@@ -32,6 +34,7 @@ def create_app(services: WebServices) -> FastAPI:
     app.include_router(claims.router)
     app.include_router(review.router)
     app.include_router(intake.router)
+    app.include_router(pages.router)
 
     @app.exception_handler(RequestValidationError)
     async def _invalid(request: Request, exc: RequestValidationError) -> JSONResponse:

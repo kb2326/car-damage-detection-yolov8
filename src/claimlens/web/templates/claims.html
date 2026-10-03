@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block main %}
+<div>
+  <p class="eyebrow">Adjuster</p>
+  <h1>Claims</h1>
+</div>
+<nav class="filters" aria-label="Filter claims">
+  <a href="/claims" {% if filter == "all" %}aria-current="page"{% endif %}>All</a>
+  <a href="/claims?filter=review" {% if filter == "review" %}aria-current="page"{% endif %}>Needs review</a>
+  <a href="/claims?filter=fraud" {% if filter == "fraud" %}aria-current="page"{% endif %}>Fraud review</a>
+</nav>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Claim</th><th>Policy</th><th>Filed (UTC)</th><th>Status</th><th>Route</th><th>Rule</th><th>Review</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><a class="mono" href="/claims/{{ r.claim_id }}">{{ r.claim_id[:8] }}</a></td>
+      <td>{{ r.policy_id }}</td>
+      <td class="mono">{{ r.filed_at.replace("T", " ")[:16] }}</td>
+      <td><span class="chip s-{{ r.status }}">{{ r.status.replace("_", " ") }}</span></td>
+      <td>{% if r.route %}<span class="chip r-{{ r.route }}">{{ r.route }}</span>{% endif %}</td>
+      <td class="mono">{{ r.rule_id or "" }}</td>
+      <td>{{ (r.review_action or "").replace("_", " ") }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">No claims here yet. File one from the chat, or start the app with --seed.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

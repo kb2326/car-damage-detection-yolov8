@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · ClaimLens</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">Claim<span>Lens</span></a>
+    <nav aria-label="Main">
+      <a href="/">File a claim</a>
+      <a href="/claims">Claims</a>
+      <a href="/docs">API</a>
+    </nav>
+    <span class="local">Local prototype · fictional policies</span>
+  </header>
+  <main class="page">{% block main %}{% endblock %}</main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

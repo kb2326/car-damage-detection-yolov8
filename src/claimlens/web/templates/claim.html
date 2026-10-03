@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="claim-head">
+  <div>
+    <p class="eyebrow">Claim · policy {{ c.policy_id }}</p>
+    <h1 class="mono">{{ c.claim_id }}</h1>
+  </div>
+  <div class="verdict">
+    {% if c.route %}<span class="chip big r-{{ c.route }}">{{ c.route }}</span>
+      <span class="mono">{{ c.rule_id }}</span>{% endif %}
+    <span class="chip s-{{ c.status }}">{{ c.status }}</span>
+    <span class="verified" title="Every event's fingerprint matches the chain">Log verified · {{ c.event_count }} events</span>
+  </div>
+</div>
+{% if c.decision_reason %}<p class="reason">{{ c.decision_reason }}</p>{% endif %}
+{% if c.status == "stopped" %}
+  <div class="alert" role="alert">
+    <p>Processing stopped{% if c.error %}: {{ c.error }}{% endif %}. The claim's log keeps every finished step.</p>
+    <button id="resume" type="button" class="primary">Resume</button>
+  </div>
+{% endif %}
+
+<section aria-labelledby="t-stages">
+  <h2 id="t-stages">Stages</h2>
+  <ol class="stages">
+  {% for s in c.stages %}
+    <li class="stage st-{{ s.state }}">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="label">{{ s.label }}</span>
+      <span class="state">{{ s.state }}</span>
+      {% if s.detail %}<span class="detail">{{ s.detail }}</span>{% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+
+<div class="grid">
+<section aria-labelledby="t-photos">
+  <h2 id="t-photos">Photos</h2>
+  <div class="photos">
+  {% for p in c.photos %}
+    <figure class="photo">
+      <div class="frame">
+        <img src="/api/claims/{{ c.claim_id }}/photos/{{ p.photo_id }}" alt="Claim photo {{ p.photo_id }}{% if p.kind %}, {{ p.kind.replace('_', ' ') }}{% endif %}">
+        {% for b in p.boxes %}
+          <span class="box" style="left: {{ b.left }}%; top: {{ b.top }}%; width: {{ b.width }}%; height: {{ b.height }}%"><span class="tag">{{ b.label }}</span></span>
+        {% endfor %}
+      </div>
+      <figcaption>{{ (p.kind or p.photo_id).replace("_", " ") }} · {{ p.status }}{% if p.reject_reason %}: {{ p.reject_reason }}{% endif %}</figcaption>
+    </figure>
+  {% else %}
+    <p class="muted">No photos.</p>
+  {% endfor %}
+  </div>
+</section>
+
+<section aria-labelledby="t-evidence">
+  <h2 id="t-evidence">Evidence</h2>
+  <dl class="facts">
+    <dt>Story</dt><dd>{{ c.description or "none given" }}</dd>
+    {% for k, v in c.facts.items() %}<dt>{{ k.replace("_", " ") }}</dt><dd>{{ v }}</dd>{% endfor %}
+    <dt>Damage</dt><dd>{{ c.damage | join("; ") or "none found" }}</dd>
+    <dt>Estimate</dt><dd>{% if c.cost_low is not none %}${{ c.cost_low }}–${{ c.cost_high }}{% else %}not priced{% endif %}</dd>
+    <dt>Coverage</dt><dd>{{ c.coverage or "not checked" }}</dd>
+    <dt>Fraud signals</dt><dd>{{ c.fraud_signals | join("; ") or "none" }}</dd>
+  </dl>
+</section>
+</div>
+
+{% if c.agent %}
+<section aria-labelledby="t-agent" class="panel">
+  <h2 id="t-agent">Triage agent <span class="muted small">advises; the rules decide</span></h2>
+  <p><span class="chip r-{{ c.agent.route_suggestion }}">{{ c.agent.route_suggestion }}</span>
+     <span class="muted">confidence {{ c.agent.confidence }} · {{ c.agent.llm_calls }} model call(s) · ${{ "%.4f"|format(c.agent.llm_cost_usd) }}</span></p>
+  <p>{{ c.agent.rationale }}</p>
+  <dl class="facts">
+    <dt>Clauses cited</dt><dd class="mono">{{ c.agent.policy_citations | join(", ") or "none" }}</dd>
+    <dt>Evidence cited</dt><dd class="mono">{{ c.agent.citations | join(", ") or "none" }}</dd>
+    <dt>Skills used</dt><dd class="mono">{{ c.agent.skills_used | join(", ") or "none" }}</dd>
+    <dt>Tools used</dt><dd class="mono">{{ c.agent.tools_used | join(", ") or "none" }}</dd>
+    <dt>Open questions</dt><dd>{{ c.agent.open_questions | join(" · ") or "none" }}</dd>
+  </dl>
+</section>
+{% endif %}
+
+<section aria-labelledby="t-similar">
+  <h2 id="t-similar">Similar claims in memory</h2>
+  {% if c.similar %}
+  <ul class="similar">{% for s in c.similar %}
+    <li><a class="mono" href="/claims/{{ s.claim_id }}">{{ s.claim_id[:8] }}</a> · {{ s.reason }}{% if s.distance is not none %} ({{ s.distance }} bits apart){% endif %} · {{ s.route }} · {{ s.damage or "no damage found" }}</li>
+  {% endfor %}</ul>
+  {% else %}<p class="muted">None found, or memory is off.</p>{% endif %}
+</section>
+
+{% if c.route and c.status != "running" %}
+<section aria-labelledby="t-review" class="panel">
+  <h2 id="t-review">Review {% if c.review_action %}<span class="muted small">last decision: {{ c.review_action.replace("_", " ") }}</span>{% endif %}</h2>
+  <form id="review-form">
+    <label for="reviewer">Your name</label>
+    <input id="reviewer" name="reviewer" required maxlength="80" autocomplete="name">
+    <label for="action">Decision</label>
+    <select id="action" name="action">
+      <option value="approve">Approve</option>
+      <option value="request_info">Ask the customer for information</option>
+      <option value="override">Change the route</option>
+      <option value="deny">Deny</option>
+    </select>
+    <label for="final_route">New route (only when changing the route)</label>
+    <select id="final_route" name="final_route">
+      <option value="">none</option>
+      <option>FAST_TRACK</option><option>ADJUSTER_REVIEW</option><option>FRAUD_REVIEW</option>
+    </select>
+    <label for="note">Note (needed to change the route or deny)</label>
+    <textarea id="note" name="note" maxlength="2000" rows="3"></textarea>
+    <button type="submit" class="primary">Record decision</button>
+    <p id="review-error" class="error" role="alert" hidden></p>
+  </form>
+</section>
+{% endif %}
+
+<details class="audit">
+  <summary>Audit trail ({{ c.event_count }} events)</summary>
+  <ol class="events">{% for e in c.events %}
+    <li class="mono">{{ e.seq }} · {{ e.type }} · {{ e.actor }} · {{ e.occurred_at }}</li>
+  {% endfor %}</ol>
+</details>
+{% endblock %}
+{% block scripts %}
+<script id="claim-data" type="application/json">{{ {"id": c.claim_id, "status": c.status, "poll": poll} | tojson }}</script>
+<script src="/static/claim.js"></script>
+{% endblock %}
