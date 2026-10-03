@@ -43,6 +43,9 @@ autolabel = [
 review = [
   "fiftyone>=1.0",
 ]
+agent = [
+  "langgraph>=1.2,<2",
+]
 knowledge = [
   "fastembed>=0.8,<0.9",
   "lancedb>=0.39,<0.40",

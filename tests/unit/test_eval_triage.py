@@ -173,3 +173,172 @@ def test_what_if_redecides_from_the_final_state(
     report = render_report([case], results, metrics, meta, what_if=[low, strict])
     assert "## What if" in report
     assert "| 0.25 | 1.00 | n/a | 1 of 1 |" in report
+
+
+def test_agent_summary_counts_calls_costs_and_failures() -> None:
+    from claimlens.evals.triage import agent_summary
+
+    results = [
+        CaseResult(
+            "a",
+            "s",
+            Route.FAST_TRACK,
+            Route.FAST_TRACK,
+            llm_calls=3,
+            tool_calls=2,
+            llm_cost_usd=0.04,
+        ),
+        CaseResult(
+            "b",
+            "s",
+            Route.FAST_TRACK,
+            Route.ADJUSTER_REVIEW,
+            rule_id="R2",
+            reason="Processing failed at: agent.",
+            llm_calls=6,
+            tool_calls=5,
+            llm_cost_usd=0.08,
+            agent_error="AgentFailed: step limit of 6 model calls reached",
+        ),
+    ]
+    summary = agent_summary(results)
+    assert summary.cases == 2
+    assert summary.llm_calls_mean == 4.5
+    assert summary.tool_calls_mean == 3.5
+    assert summary.cost_total_usd == pytest.approx(0.12)
+    assert summary.cost_mean_usd == pytest.approx(0.06)
+    assert summary.cost_max_usd == pytest.approx(0.08)
+    assert summary.agent_failures == {"AgentFailed": 1}
+
+
+def test_report_gains_an_agent_section() -> None:
+    from claimlens.evals.triage import agent_summary
+
+    case = GoldenClaim(
+        case_id="a",
+        scenario="s",
+        policy_id="P-1001",
+        description="",
+        photos=("x.jpg",),
+        expected_route=Route.FAST_TRACK,
+        label_source="t",
+    )
+    results = [
+        CaseResult(
+            "a",
+            "s",
+            Route.FAST_TRACK,
+            Route.FAST_TRACK,
+            rule_id="R9",
+            llm_calls=3,
+            tool_calls=2,
+            llm_cost_usd=0.041,
+        )
+    ]
+    meta = ReportMeta("g.jsonl", "m", "triage-agent-v1+triage/v1", "p", date(2026, 10, 3))
+    metrics = compute_triage_metrics([(Route.FAST_TRACK, Route.FAST_TRACK)])
+    report = render_report([case], results, metrics, meta, agent=agent_summary(results))
+    assert "## Agent" in report
+    assert "| Model calls per claim (mean) | 3.0 |" in report
+    assert "| Cost per claim (mean / max) | $0.041 / $0.041 |" in report
+    assert "| Agent failures (sent to a person) | none |" in report
+    assert "## Agent" not in render_report([case], results, metrics, meta)
+
+
+def test_case_results_count_llm_and_tool_events(tmp_path: Path) -> None:
+    from uuid import uuid4
+
+    from claimlens.evals.triage import agent_counts
+    from claimlens.events.envelope import Actor, ActorKind
+    from claimlens.events.payloads import ClaimReported, LLMCalled, StageFailed, ToolCalled
+
+    store = SQLiteEventStore(tmp_path / "c.db")
+    claim = uuid4()
+    system = Actor(kind=ActorKind.SYSTEM, name="t")
+    store.append(claim, ClaimReported(policy_id="P-1001", description=""), system)
+    for cost in (0.01, 0.02):
+        store.append(
+            claim,
+            LLMCalled(
+                request_id="r",
+                model="m",
+                prompt_id="triage/v1",
+                input_tokens=1,
+                output_tokens=1,
+                cost_usd=cost,
+                cached=False,
+                outcome="ok",
+            ),
+            system,
+        )
+    store.append(
+        claim,
+        ToolCalled(server="s", tool="t", profile="triage", input_sha256="x", outcome="ok"),
+        system,
+    )
+    store.append(claim, StageFailed(stage="agent", error="AgentFailed: step limit"), system)
+    events = store.load(claim)
+    store.close()
+    llm_calls, tool_calls, cost, error = agent_counts(events)
+    assert (llm_calls, tool_calls, error) == (2, 1, "AgentFailed: step limit")
+    assert cost == pytest.approx(0.03)
+
+
+def test_report_explains_claims_the_agent_held_back() -> None:
+    from uuid import uuid4
+
+    from claimlens.domain import AgentRecommendation, Confidence
+    from claimlens.evals.triage import agent_summary
+    from claimlens.events.projection import ClaimState
+
+    case = GoldenClaim(
+        case_id="a",
+        scenario="s",
+        policy_id="P-1001",
+        description="",
+        photos=("x.jpg",),
+        expected_route=Route.FAST_TRACK,
+        label_source="t",
+    )
+    state = ClaimState(claim_id=uuid4(), policy_id="P-1001", description="")
+    state.recommendation = AgentRecommendation(
+        route_suggestion=Route.FAST_TRACK,
+        confidence=Confidence.MEDIUM,
+        rationale="Damage | matches the story.",
+        citations=(),
+        open_questions=("Was the second photo | taken the same day?",),
+    )
+    held = CaseResult("a", "s", Route.FAST_TRACK, Route.ADJUSTER_REVIEW, rule_id="R7", state=state)
+    meta = ReportMeta("g.jsonl", "m", "agent", "p", date(2026, 10, 3))
+    metrics = compute_triage_metrics([(Route.FAST_TRACK, Route.ADJUSTER_REVIEW)])
+    report = render_report([case], [held], metrics, meta, agent=agent_summary([held]))
+    assert "## Claims the agent held back (R7, R8)" in report
+    assert (
+        r"| a | FAST_TRACK | R7 | FAST_TRACK, medium | Damage \| matches the story. "
+        r"| Was the second photo \| taken the same day? |"
+    ) in report
+
+
+def test_agent_section_counts_which_rule_decided() -> None:
+    from claimlens.evals.triage import agent_summary
+
+    results = [
+        CaseResult("a", "s", Route.FAST_TRACK, Route.FAST_TRACK, rule_id="R9"),
+        CaseResult("b", "s", Route.FAST_TRACK, Route.ADJUSTER_REVIEW, rule_id="R7"),
+        CaseResult("c", "s", Route.FAST_TRACK, Route.ADJUSTER_REVIEW, rule_id="R7"),
+    ]
+    summary = agent_summary(results)
+    assert summary.rules == {"R7": 2, "R9": 1}
+    case = GoldenClaim(
+        case_id="a",
+        scenario="s",
+        policy_id="P-1001",
+        description="",
+        photos=("x.jpg",),
+        expected_route=Route.FAST_TRACK,
+        label_source="t",
+    )
+    meta = ReportMeta("g.jsonl", "m", "agent", "p", date(2026, 10, 3))
+    metrics = compute_triage_metrics([(r.expected, r.predicted) for r in results])
+    report = render_report([case], results, metrics, meta, agent=summary)
+    assert "| Decided by rule | R7: 2, R9: 1 |" in report

@@ -4,8 +4,8 @@
 for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
 of every consequential decision.
 
-> Status: **M0–M4 complete** (foundations, walking skeleton, data engine, vision models, tools).
-> Next: **M5, the LLM triage agent.** This repository started as a STAT 5350 course project (a
+> Status: **M0–M4 complete; M5a built** (the LLM triage agent on LangGraph). Next: **M5b,
+> measuring the agent** (150 golden claims, an LLM judge, CI gates, tracing, review queue). This repository started as a STAT 5350 course project (a
 > YOLOv8 car-damage detector). See [`legacy/README.md`](legacy/README.md) for the original code and
 > the audit that motivated the rebuild.
 
@@ -21,6 +21,7 @@ of every consequential decision.
 | Calibration | Temperature scaling; the confidence threshold comes from evidence | T = 0.80; threshold 0.65 |
 | Golden set (97 claims) | Full system at threshold 0.65 | Route accuracy **0.78**, escalation recall **1.00**, 9 of 30 correct fast-tracks |
 | Tools (MCP) | 4 servers with per-agent scopes; payments need a human-signed, single-use token | Usable from Claude Code |
+| Triage agent | LangGraph agent on the gateway and read-only MCP tools; cites clauses, checked in code | Escalation recall 1.00, $0.009 per claim, 0 failures |
 | LLM gateway | Tiers, retries, fallback, cache; caps of $0.03 per claim and $1 per day | Two live test calls cost $0.0006 in total |
 | Policy search | 56 fictional clauses, LanceDB hybrid search, citation check | recall@5 **1.00** on 10 questions (a small corpus, so a generous bar) |
 
@@ -51,7 +52,7 @@ human with the evidence already assembled.**
 
 Fixed code handles every predictable step. The LLM is used only where judgment is needed, and its
 advice passes through deterministic rules before any routing decision. The diagram shows the target
-design. Today the triage agent is a rule-based stub (the LLM agent arrives in M5), and the intake
+design. The LLM triage agent runs with `--agent llm` (the default stays the rule-based stub), and the intake
 agent, PII blur, EXIF and synthetic-image checks are planned for M6 and M7.
 
 ```mermaid
@@ -208,6 +209,7 @@ uv run claimlens knowledge search "is a rental car covered after a collision?" -
 # Run a claim end to end (needs model weights, see below)
 uv sync --group vision --group knowledge   # adds Ultralytics (large download)
 uv run claimlens run --policy P-1001 --description "Scraped a pole" tests/fixtures/images/dent_1.jpg
+uv run claimlens --agent llm run --policy P-1001 --description "Scraped a pole" tests/fixtures/images/dent_1.jpg   # with the LLM triage agent (needs ANTHROPIC_API_KEY)
 uv run claimlens show <claim-id>     # decision and audit trail
 uv run claimlens verify <claim-id>   # check the hash chain
 uv run claimlens resume <claim-id>   # finish a claim that was interrupted
@@ -260,7 +262,7 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 | M2 ✅ | Data engine: CarDD + foundation-model auto-labelling, DVC, FiftyOne |
 | M3 ✅ | Vision models: damage + part instance segmentation, fusion, calibration, model card |
 | M4 ✅ | Tools & integration: MCP servers with scopes, LLM gateway, policy search with citations |
-| M5 (next) | Triage agent: human-in-the-loop, LLM evals, CI gates, tracing |
+| M5 (in progress) | Triage agent ✅ (M5a); human-in-the-loop, LLM evals, CI gates, tracing (M5b) |
 | M6 | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
 | M7 | Trust & governance: OWASP agentic threat model, red-team, fraud, PII, AIS program |
 | M8 | Ship: ONNX, Docker, public demo, monitoring |

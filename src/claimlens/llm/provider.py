@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from claimlens.llm.types import Message
+from claimlens.llm.types import Message, ToolCall, ToolSpec
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,7 @@ class ProviderReply:
     text: str
     input_tokens: int
     output_tokens: int
+    tool_calls: tuple[ToolCall, ...] = ()
 
 
 def billable_input_tokens(
@@ -36,7 +37,13 @@ class ProviderFatalError(Exception):
 
 class Provider(Protocol):
     def complete(
-        self, model: str, system: str, messages: Sequence[Message], max_tokens: int
+        self,
+        model: str,
+        system: str,
+        messages: Sequence[Message],
+        max_tokens: int,
+        tools: Sequence[ToolSpec] = (),
+        tool_choice: str | None = None,
     ) -> ProviderReply: ...
 
 
@@ -46,10 +53,23 @@ class FakeProvider:
     calls: list[dict[str, Any]] = field(default_factory=list)
 
     def complete(
-        self, model: str, system: str, messages: Sequence[Message], max_tokens: int
+        self,
+        model: str,
+        system: str,
+        messages: Sequence[Message],
+        max_tokens: int,
+        tools: Sequence[ToolSpec] = (),
+        tool_choice: str | None = None,
     ) -> ProviderReply:
         self.calls.append(
-            {"model": model, "system": system, "messages": list(messages), "max_tokens": max_tokens}
+            {
+                "model": model,
+                "system": system,
+                "messages": list(messages),
+                "max_tokens": max_tokens,
+                "tools": tuple(tools),
+                "tool_choice": tool_choice,
+            }
         )
         assert self.script, "FakeProvider script ran out"
         step = self.script.pop(0)

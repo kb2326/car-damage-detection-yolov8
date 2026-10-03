@@ -13,7 +13,13 @@ from claimlens.llm.log import event_call_log, jsonl_call_log
 from claimlens.llm.types import LLMUnavailable
 
 
-def build_gateway(config_dir: Path, repo_root: Path, store_path: Path | None = None) -> Gateway:
+def build_gateway(
+    config_dir: Path,
+    repo_root: Path,
+    store_path: Path | None = None,
+    *,
+    per_day_usd: float | None = None,
+) -> Gateway:
     """Gateway on the Anthropic API. Calls with a claim id are also logged on that claim."""
     key = read_secret("ANTHROPIC_API_KEY", repo_root / ".env")
     if not key:
@@ -21,6 +27,9 @@ def build_gateway(config_dir: Path, repo_root: Path, store_path: Path | None = N
     from claimlens.llm.anthropic_provider import AnthropicProvider
 
     config = load_llm_config(config_dir / "llm.toml")
+    if per_day_usd is not None:  # an evaluation run may raise the daily cap for itself only
+        limits = config.limits.model_copy(update={"per_day_usd": per_day_usd})
+        config = config.model_copy(update={"limits": limits})
     var = repo_root / "var"
     log = jsonl_call_log(var / "llm-calls.jsonl")
     if store_path is not None:

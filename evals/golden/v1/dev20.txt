@@ -1,0 +1,23 @@
+# Fixed 20-case development subset of golden v1, for LLM-agent runs while developing.
+# Stratified by expected route in golden proportions (12 adjuster review, 6 fast-track,
+# 2 fraud review), random.Random(20261002).sample per route. Do not regenerate.
+g006
+g014
+g015
+g034
+g035
+g037
+g041
+g043
+g048
+g049
+g103
+g106
+g112
+g118
+g120
+g123
+g125
+g130
+g138
+g144

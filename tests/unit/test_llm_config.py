@@ -14,7 +14,7 @@ def test_repo_config_loads() -> None:
     assert config.tiers == {"strong": "claude-sonnet-5-5", "fast": "claude-haiku-4-5"}
     assert config.models_for("strong") == ["claude-sonnet-5-5", "claude-haiku-4-5"]
     assert config.models_for("fast") == ["claude-haiku-4-5"]
-    assert config.limits.per_claim_usd == 0.03
+    assert config.limits.per_claim_usd == 0.10
 
 
 def test_cost_uses_per_million_prices() -> None:

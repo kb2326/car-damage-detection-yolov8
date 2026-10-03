@@ -166,8 +166,10 @@ something that already works.*
 
 *Add the reasoning assistant, then measure it like a product.*
 
-- [ ] Agent loop with step, cost and time limits
-- [ ] Bake-off: our own loop vs LangGraph behind the same interface, on the golden set (ADR 0007)
+- [x] Agent loop with step, cost and time limits (LangGraph on our gateway and scoped MCP tools; M5a)
+- [x] LangGraph chosen by the owner without a bake-off (ADR 0013, supersedes ADR 0007)
+- [x] Citations checked in code: every clause exists and belongs to the claimant's wording
+- [x] Golden v1 with the LLM agent: escalation recall 1.00, $0.009 per claim; fast-tracks 1 of 30 (stub 9): the agent holds back claims whose vision output is impossible (fusion fix needed)
 - [ ] Human review queue and approval tokens
 - [ ] 150 golden claims
 - [ ] LLM judge, checked against 50 of your own labels

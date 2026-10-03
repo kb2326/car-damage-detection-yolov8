@@ -93,8 +93,8 @@ def test_fatal_error_does_not_fall_back(tmp_path: Path) -> None:
 
 
 def test_claim_at_cap_is_refused_before_calling(tmp_path: Path) -> None:
-    gateway, fake, _ = _gateway(tmp_path, [ProviderReply("x", 15000, 0)] * 2)
-    gateway.generate(_ask(tier="strong", claim_id="c1"))  # $0.03 spent
+    gateway, fake, _ = _gateway(tmp_path, [ProviderReply("x", 50000, 0)] * 2)
+    gateway.generate(_ask(tier="strong", claim_id="c1"))  # $0.10 spent: the claim cap
     with pytest.raises(BudgetExceeded):
         gateway.generate(_ask("again", tier="strong", claim_id="c1"))
     assert len(fake.calls) == 1
@@ -279,3 +279,14 @@ def test_gateway_factory_needs_a_key(tmp_path: Path, monkeypatch: pytest.MonkeyP
         build_gateway(ROOT / "config", tmp_path)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-not-real")
     assert isinstance(build_gateway(ROOT / "config", tmp_path), Gateway)
+
+
+def test_gateway_factory_can_raise_the_daily_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from claimlens.llm.factory import build_gateway
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-not-real")
+    gateway = build_gateway(ROOT / "config", tmp_path, per_day_usd=10.0)
+    assert gateway._config.limits.per_day_usd == 10.0
+    assert gateway._config.limits.per_claim_usd == CONFIG.limits.per_claim_usd

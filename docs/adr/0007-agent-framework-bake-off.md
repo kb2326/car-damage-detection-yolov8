@@ -1,6 +1,6 @@
 # ADR 0007: Choose the agent framework by a bake-off
 
-- **Status:** Proposed (decided in M5)
+- **Status:** Superseded by ADR 0013 (2026-10-03): the owner chose LangGraph without a bake-off
 - **Date:** 2026-10-02
 
 ## Context
