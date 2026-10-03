@@ -146,9 +146,9 @@ def build(cap: float) -> None:
     for key, box in PLATES.items():  # privacy: no readable number plate is published
         path = photos / f"{key}.jpg"
         with Image.open(path) as source:
-            image = source.convert("RGB")
-        image.paste(image.crop(box).filter(ImageFilter.GaussianBlur(14)), box[:2])
-        image.save(path, "JPEG", quality=92)
+            blurred = source.convert("RGB")
+        blurred.paste(blurred.crop(box).filter(ImageFilter.GaussianBlur(14)), box[:2])
+        blurred.save(path, "JPEG", quality=92)
     for file in photos.iterdir():  # blobs are named by content hash: remember which is which
         _HASHES[hashlib.sha256(file.read_bytes()).hexdigest()] = file.stem
 
