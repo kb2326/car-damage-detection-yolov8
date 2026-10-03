@@ -43,3 +43,9 @@ def make_image(tmp_path: Path) -> Callable[..., Path]:
         return path
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _no_trace_export(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never send traces, even if CLAIMLENS_TRACING is set in the shell."""
+    monkeypatch.delenv("CLAIMLENS_TRACING", raising=False)

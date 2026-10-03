@@ -284,4 +284,49 @@ def test_llm_daily_cap_reaches_the_agent_factory(
     )
     assert code == 0
     assert caps == [5.0]
-    assert "## Agent" in (tmp_path / "r.md").read_text(encoding="utf-8")
+    report = (tmp_path / "r.md").read_text(encoding="utf-8")
+    assert "## Agent" in report
+    assert "| Citation validity |" in report
+
+
+def test_review_claim_and_queue(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from tests.fakes import decided_claim
+
+    store, claim = decided_claim(tmp_path, Route.ADJUSTER_REVIEW)
+    store.close()
+    db = ["--db", str(tmp_path / "claims.db")]
+    assert main([*db, "queue"]) == 0
+    out = capsys.readouterr().out
+    assert str(claim) in out
+    assert "R7" in out
+    assert main([*db, "review-claim", str(claim), "--deny", "--reviewer", "sam"]) == 2
+    assert "--note" in capsys.readouterr().err
+    assert main([*db, "review-claim", str(claim), "--approve", "--reviewer", "sam"]) == 0
+    assert main([*db, "queue"]) == 0
+    assert "No claims are waiting" in capsys.readouterr().out
+
+
+def test_a_partial_run_cannot_write_a_gate_scorecard(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = tmp_path / "cases.txt"
+    cases.write_text("g001\n", encoding="utf-8")
+    code = main(
+        [
+            "--config",
+            str(CONFIG_DIR),
+            "eval-triage",
+            "--golden",
+            str(CONFIG_DIR.parent / "evals" / "golden" / "v1" / "claims.jsonl"),
+            "--report",
+            str(tmp_path / "r.md"),
+            "--cases",
+            str(cases),
+            "--scorecard",
+            str(tmp_path / "s.json"),
+        ],
+        detector_factory=lambda *_: FakeDetector(),
+    )
+    assert code == 2
+    assert "--scorecard needs the full golden set" in capsys.readouterr().err
+    assert not (tmp_path / "s.json").exists()

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import ClassVar
+from typing import ClassVar, Self
+
+from pydantic import model_validator
 
 from claimlens.domain import (
     AgentRecommendation,
@@ -13,6 +15,7 @@ from claimlens.domain import (
     Decision,
     FraudSignal,
     Frozen,
+    Route,
 )
 from claimlens.events.envelope import ClaimEvent
 
@@ -34,6 +37,7 @@ class EventType(StrEnum):
     PAYMENT_ISSUED = "PaymentIssued"
     TOOL_CALLED = "ToolCalled"
     LLM_CALLED = "LLMCalled"
+    HUMAN_REVIEWED = "HumanReviewed"
 
 
 class Payload(Frozen):
@@ -94,6 +98,35 @@ class AgentRecommended(Payload):
     event_type: ClassVar[EventType] = EventType.AGENT_RECOMMENDED
     agent_version: str
     recommendation: AgentRecommendation
+
+
+class ReviewAction(StrEnum):
+    APPROVE = "approve"
+    OVERRIDE = "override"
+    DENY = "deny"  # only a person can deny; no model, agent or rule produces this
+    REQUEST_INFO = "request_info"
+
+
+class HumanReviewed(Payload):
+    """What a person decided about a claim on a review route (or any decided claim)."""
+
+    event_type: ClassVar[EventType] = EventType.HUMAN_REVIEWED
+    reviewer: str
+    action: ReviewAction
+    final_route: Route | None = None
+    note: str = ""
+
+    @model_validator(mode="after")
+    def _complete(self) -> Self:
+        if not self.reviewer.strip():
+            raise ValueError("a review needs the reviewer's name")
+        if self.action is ReviewAction.OVERRIDE and self.final_route is None:
+            raise ValueError("an override needs a final_route")
+        if self.action is not ReviewAction.OVERRIDE and self.final_route is not None:
+            raise ValueError("final_route is only for an override")
+        if self.action in (ReviewAction.OVERRIDE, ReviewAction.DENY) and not self.note.strip():
+            raise ValueError("an override or a denial needs a note")
+        return self
 
 
 class RouteDecided(Payload):
@@ -169,6 +202,7 @@ PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
         PaymentIssued,
         ToolCalled,
         LLMCalled,
+        HumanReviewed,
     )
 }
 

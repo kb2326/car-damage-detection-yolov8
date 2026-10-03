@@ -21,6 +21,7 @@ from claimlens.events.payloads import (
     ClaimReported,
     CostEstimated,
     DamageDetected,
+    HumanReviewed,
     IntegrityChecked,
     LLMCalled,
     NoteAdded,
@@ -72,6 +73,7 @@ class ClaimState:
     notes: list[str] = field(default_factory=list)
     queue: str | None = None
     payments: list[str] = field(default_factory=list)
+    review: HumanReviewed | None = None  # the latest human review
     last_seq: int = 0
 
     @property
@@ -134,6 +136,8 @@ def _apply(state: ClaimState, event: ClaimEvent, payload: Payload) -> None:
             state.queue = payload.queue
         case PaymentIssued():
             state.payments.append(payload.payment_id)
+        case HumanReviewed():
+            state.review = payload
         case ToolCalled() | LLMCalled():
             pass
         case ClaimReported():

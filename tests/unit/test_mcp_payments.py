@@ -83,7 +83,7 @@ def test_fraud_routed_claims_are_never_paid(tmp_path: Path) -> None:
     token = issue_approval(str(claim), 850, SECRET, now=NOW)
     result = _pay(_server(db), claim, 850, token)
     assert result.is_error
-    assert "FRAUD_REVIEW" in error_text(result)
+    assert "fraud-routed claims are never paid" in error_text(result)
 
 
 def test_missing_secret_refuses(tmp_path: Path) -> None:
@@ -121,7 +121,7 @@ def test_claims_without_a_decision_are_not_paid(tmp_path: Path) -> None:
     token = issue_approval(str(claim), 850, SECRET, now=NOW)
     result = _pay(_server(db), claim, 850, token)
     assert result.is_error
-    assert "no decision" in error_text(result)
+    assert "has not been decided" in error_text(result)
 
 
 def test_a_note_key_does_not_block_a_payment(tmp_path: Path) -> None:
@@ -150,3 +150,34 @@ def test_payment_audits_name_a_human_actor(tmp_path: Path) -> None:
     audit = SQLiteEventStore(db).load(claim)[-1]
     assert audit.type == "ToolCalled"
     assert audit.actor.kind.value == "human"
+
+
+def test_an_adjuster_claim_is_paid_only_after_a_human_approves(tmp_path: Path) -> None:
+    from claimlens.events.payloads import HumanReviewed, ReviewAction
+    from claimlens.review_queue import record_review
+
+    db = tmp_path / "c.db"
+    claim = _claim(db, Route.ADJUSTER_REVIEW)
+    token = issue_approval(str(claim), 300, SECRET, now=NOW)
+    refused = _pay(_server(db), claim, 300, token)
+    assert refused.is_error
+    assert "waiting for human review" in error_text(refused)
+    store = SQLiteEventStore(db)
+    record_review(store, claim, HumanReviewed(reviewer="sam", action=ReviewAction.APPROVE))
+    store.close()
+    assert not _pay(_server(db), claim, 300, token).is_error
+
+
+def test_a_denied_claim_is_never_paid(tmp_path: Path) -> None:
+    from claimlens.events.payloads import HumanReviewed, ReviewAction
+    from claimlens.review_queue import record_review
+
+    db = tmp_path / "c.db"
+    claim = _claim(db, Route.FAST_TRACK)
+    store = SQLiteEventStore(db)
+    record_review(
+        store, claim, HumanReviewed(reviewer="sam", action=ReviewAction.DENY, note="staged")
+    )
+    store.close()
+    token = issue_approval(str(claim), 300, SECRET, now=NOW)
+    assert "denied by a reviewer" in error_text(_pay(_server(db), claim, 300, token))

@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from claimlens.decision import DecisionConfig, decide
 from claimlens.domain import Route
@@ -16,6 +17,10 @@ from claimlens.events.envelope import ClaimEvent
 from claimlens.events.projection import ClaimState, fold
 from claimlens.intake import submit_claim
 from claimlens.workflow import PipelineDeps, process_claim
+
+if TYPE_CHECKING:
+    from claimlens.evals.agent_metrics import AgentQuality
+    from claimlens.llm.config import LLMConfig
 
 
 @dataclass(frozen=True)
@@ -32,6 +37,7 @@ class CaseResult:
     tool_calls: int = 0
     llm_cost_usd: float = 0.0
     agent_error: str = ""
+    llm_tokens: tuple[tuple[str, int, int], ...] = ()
 
 
 def _cell(text: str) -> str:
@@ -53,6 +59,26 @@ def agent_counts(events: Sequence[ClaimEvent]) -> tuple[int, int, float, str]:
         "",
     )
     return len(llm), tools, cost, error
+
+
+def llm_tokens(events: Sequence[ClaimEvent]) -> tuple[tuple[str, int, int], ...]:
+    """(model, input tokens, output tokens) for every model call, cache hits included."""
+    return tuple(
+        (str(e.payload["model"]), int(e.payload["input_tokens"]), int(e.payload["output_tokens"]))
+        for e in events
+        if e.type == "LLMCalled"
+    )
+
+
+def mean_list_cost(results: Sequence[CaseResult], config: LLMConfig) -> float | None:
+    """Mean cost per claim at list price, as if nothing came from the response cache.
+
+    The gate compares this, so a run that happens to hit the cache does not look cheaper.
+    """
+    if not results:
+        return None
+    total = sum(config.cost(m, tin, tout) for r in results for m, tin, tout in r.llm_tokens)
+    return total / len(results)
 
 
 @dataclass(frozen=True)
@@ -128,6 +154,7 @@ def run_case(case: GoldenClaim, deps: PipelineDeps, repo_root: Path) -> CaseResu
         tool_calls=tool_calls,
         llm_cost_usd=cost,
         agent_error=agent_error,
+        llm_tokens=llm_tokens(events),
     )
 
 
@@ -183,6 +210,7 @@ def render_report(
     meta: ReportMeta,
     what_if: Sequence[tuple[float, TriageMetrics]] = (),
     agent: AgentSummary | None = None,
+    quality: AgentQuality | None = None,
 ) -> str:
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     reviewed = sum(case.reviewed for case in cases)
@@ -271,6 +299,49 @@ def render_report(
             + (", ".join(f"{k}: {v}" for k, v in agent.rules.items()) or "none")
             + " |",
         ]
+        if quality is not None:
+
+            def rate(value: float | None) -> str:
+                return "n/a" if value is None else f"{value:.2f}"
+
+            lines += [
+                f"| Citation validity | {rate(quality.citation_validity)} |",
+                f"| Right clause cited (expected citations) | {rate(quality.citation_hit_rate)} |",
+                f"| Narrative cases caught | {rate(quality.narrative_catch_rate)} |",
+                f"| Harmless stories fast-tracked | {rate(quality.benign_pass_rate)} |",
+                f"| Agent failure rate | {rate(quality.agent_failure_rate)} |",
+            ]
+            by_case = {c.case_id: c for c in cases}
+            missed = []
+            for r in results:
+                case = by_case.get(r.case_id)
+                advice = r.state.recommendation if r.state is not None else None
+                if (
+                    case is not None
+                    and case.narrative
+                    and case.expected_route is not Route.FAST_TRACK
+                    and advice is not None
+                    and advice.route_suggestion is Route.FAST_TRACK
+                ):
+                    missed.append((r, case, advice))
+            if missed:
+                lines += [
+                    "",
+                    "## Narrative cases the agent missed",
+                    "",
+                    "The agent suggested FAST_TRACK on a story that should go to a person. "
+                    "The rules may still have escalated the claim for another reason.",
+                    "",
+                    "| Case | Scenario | Reason it must escalate | Agent said | Rationale |",
+                    "|---|---|---|---|---|",
+                ]
+                for r, case, advice in missed:
+                    reason = _cell(case.must_not_fast_track_reason)
+                    lines.append(
+                        f"| {r.case_id} | {case.scenario} | {reason} "
+                        f"| {advice.route_suggestion.value}, {advice.confidence.value} "
+                        f"| {_cell(advice.rationale)} |"
+                    )
         held = [
             r
             for r in results

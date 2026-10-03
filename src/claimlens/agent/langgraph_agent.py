@@ -83,5 +83,12 @@ class LangGraphTriageAgent:
             )
 
         graph = build_graph(model, tools, check, self._config, self._clock)
-        accepted = run_graph(graph, self._prompt.text, evidence.text, self._config, self._clock)
+        tags = {
+            "claim_id": str(state.claim_id),
+            "agent_version": self.agent_version,
+            "prompt_id": self._prompt.id,
+        }
+        accepted = run_graph(
+            graph, self._prompt.text, evidence.text, self._config, self._clock, tags
+        )
         return to_agent_recommendation(Recommendation.model_validate(accepted), evidence.ids)

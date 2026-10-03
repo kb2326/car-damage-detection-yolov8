@@ -24,9 +24,16 @@ from claimlens.data.records import read_records, write_records
 from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
 from claimlens.domain import Frozen, Route
+from claimlens.evals.agent_metrics import AgentQuality
 from claimlens.evals.golden import GoldenClaim, load_golden, write_golden
+from claimlens.evals.judge_commands import (
+    JudgeGatewayFactory,
+    add_judge_parser,
+    run_judge_command,
+)
 from claimlens.evals.metrics import compute_triage_metrics
 from claimlens.evals.triage import (
+    CaseResult,
     ReportMeta,
     agent_summary,
     render_report,
@@ -34,6 +41,7 @@ from claimlens.evals.triage import (
     what_if_thresholds,
 )
 from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
+from claimlens.events.payloads import HumanReviewed, ReviewAction
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
 from claimlens.intake import submit_claim
@@ -43,6 +51,7 @@ from claimlens.knowledge.commands import (
     run_knowledge_command,
 )
 from claimlens.knowledge.embed import Embedder
+from claimlens.llm.gateway import Gateway
 from claimlens.policy import load_policies
 from claimlens.pricing import load_rate_card
 from claimlens.review.decisions import (
@@ -56,6 +65,8 @@ from claimlens.review.decisions import (
     read_review,
     write_review,
 )
+from claimlens.review_queue import payable, pending_reviews, record_review
+from claimlens.tracing import setup_tracing, shutdown_tracing
 from claimlens.training.commands import (
     ExporterFactory,
     SegmenterFactory,
@@ -222,6 +233,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    queue = sub.add_parser("queue", help="claims waiting for a person, oldest first")
+    queue.add_argument("--route", choices=["ADJUSTER_REVIEW", "FRAUD_REVIEW"], default=None)
+    decide = sub.add_parser("review-claim", help="human step: record what a reviewer decided")
+    decide.add_argument("claim_id", type=UUID)
+    action = decide.add_mutually_exclusive_group(required=True)
+    action.add_argument("--approve", action="store_true", help="approve (payment may follow)")
+    action.add_argument("--override", choices=[r.value for r in Route], help="set another route")
+    action.add_argument("--deny", action="store_true", help="deny the claim (people only)")
+    action.add_argument("--request-info", action="store_true", help="ask for more information")
+    decide.add_argument("--reviewer", required=True, help="your name, recorded on the claim")
+    decide.add_argument("--note", default="", help="required for --override and --deny")
+
     run = sub.add_parser("run", help="submit a claim and process it")
     run.add_argument("--policy", required=True, help="policy number, e.g. P-1001")
     run.add_argument("--description", default="", help="what happened")
@@ -248,6 +271,15 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
     evaluate.add_argument(
+        "--scorecard", type=Path, default=None, help="write the gate's scorecard JSON here"
+    )
+    evaluate.add_argument(
+        "--save-run",
+        type=Path,
+        default=None,
+        help="save each case's evidence and recommendation here (for the LLM judge)",
+    )
+    evaluate.add_argument(
         "--cases", type=Path, default=None, help="run only the case ids listed in this file"
     )
     evaluate.add_argument(
@@ -262,6 +294,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="comma-separated confidence thresholds, e.g. 0.25,0.40,0.55",
     )
+
+    gate = sub.add_parser("eval-gate", help="CI: check the committed scorecard (no models, no key)")
+    gate.add_argument("--root", type=Path, default=Path("."))
+    gate.add_argument("--current", type=Path, default=Path("evals/scorecards/current.json"))
+    gate.add_argument("--baseline", type=Path, default=Path("evals/scorecards/baseline.json"))
 
     data = sub.add_parser("data", help="fetch and build datasets")
     data_sub = data.add_subparsers(dest="data_command", required=True)
@@ -280,6 +317,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--reviewer", default="reviewer")
     add_train_parser(sub)
     add_knowledge_parser(sub)
+    add_judge_parser(sub)
     return parser
 
 
@@ -335,12 +373,16 @@ def main(
     exporter: ExporterFactory = _export_onnx,
     embedder_factory: EmbedderFactory = _fastembedder,
     agent_factory: AgentFactory = _llm_agent,
+    judge_gateway_factory: JudgeGatewayFactory | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "knowledge":
         return run_knowledge_command(args, embedder_factory=embedder_factory)
-    args.agent_factory = agent_factory
+    setup_tracing()  # does nothing unless CLAIMLENS_TRACING=1
     try:
+        if args.command == "judge":
+            return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
+        args.agent_factory = agent_factory
         return _dispatch(
             args, detector_factory, labeller_factory, trainer_factory, segmenter_factory, exporter
         )
@@ -350,6 +392,8 @@ def main(
     except AgentUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    finally:
+        shutdown_tracing()
 
 
 class DetectorUnavailableError(RuntimeError):
@@ -387,6 +431,15 @@ def _dispatch(
 ) -> int:
     if args.command == "eval-triage":
         return _eval_triage(args, detector_factory)
+    if args.command == "eval-gate":
+        from claimlens.evals.scorecard import load_gate_config, run_eval_gate
+
+        return run_eval_gate(
+            args.root,
+            args.root / args.current,
+            args.root / args.baseline,
+            load_gate_config(args.config / "eval_gate.toml"),
+        )
     if args.command == "data":
         return _data(args, labeller_factory)
     if args.command == "review":
@@ -408,6 +461,10 @@ def _dispatch(
             return _resume(args, store, detector_factory)
         if args.command == "approve-payment":
             return _approve_payment(args, store)
+        if args.command == "queue":
+            return _queue(args, store)
+        if args.command == "review-claim":
+            return _review_claim(args, store)
         return _inspect(args, store)
     finally:
         store.close()
@@ -476,6 +533,52 @@ def _mcp(args: argparse.Namespace, factory: DetectorFactory) -> int:
     return 0
 
 
+def _queue(args: argparse.Namespace, store: SQLiteEventStore) -> int:
+    route = Route(args.route) if args.route else None
+    waiting = pending_reviews(store, route)
+    if not waiting:
+        print("No claims are waiting for review.")
+        return 0
+    for state in waiting:
+        assert state.decision is not None
+        print(f"{state.claim_id}  {state.decision.route.value}  {state.decision.rule_id}")
+        print(f"    Why: {state.decision.reason}")
+        rec = state.recommendation
+        if rec is not None:
+            cited = ", ".join(rec.policy_citations) or "none"
+            print(
+                f"    Agent: {rec.route_suggestion.value} ({rec.confidence.value}); cites {cited}"
+            )
+            print(f"    {rec.rationale}")
+            for question in rec.open_questions:
+                print(f"    ? {question}")
+        if state.review is not None:
+            print(f"    Last review: {state.review.action.value} by {state.review.reviewer}")
+    return 0
+
+
+def _review_claim(args: argparse.Namespace, store: SQLiteEventStore) -> int:
+    if args.approve:
+        action, final = ReviewAction.APPROVE, None
+    elif args.override:
+        action, final = ReviewAction.OVERRIDE, Route(args.override)
+    elif args.deny:
+        action, final = ReviewAction.DENY, None
+    else:
+        action, final = ReviewAction.REQUEST_INFO, None
+    if action in (ReviewAction.OVERRIDE, ReviewAction.DENY) and not args.note.strip():
+        print(f"error: --{action.value} needs --note with the reason", file=sys.stderr)
+        return 2
+    review = HumanReviewed(reviewer=args.reviewer, action=action, final_route=final, note=args.note)
+    try:
+        seq = record_review(store, args.claim_id, review)
+    except (ClaimNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"Recorded {action.value} by {args.reviewer} on claim {args.claim_id} (event {seq})")
+    return 0
+
+
 def _approve_payment(args: argparse.Namespace, store: SQLiteEventStore) -> int:
     from datetime import UTC, datetime
 
@@ -486,11 +589,9 @@ def _approve_payment(args: argparse.Namespace, store: SQLiteEventStore) -> int:
     except ClaimNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    if state.decision is None:
-        print("error: the claim has no decision yet", file=sys.stderr)
-        return 1
-    if state.decision.route is Route.FRAUD_REVIEW:
-        print("error: claims routed to FRAUD_REVIEW cannot be approved here", file=sys.stderr)
+    refusal = payable(state)
+    if refusal is not None:
+        print(f"error: this claim cannot be paid: {refusal}", file=sys.stderr)
         return 1
     if args.amount <= 0:
         print("error: amount must be positive", file=sys.stderr)
@@ -530,9 +631,59 @@ def _select_cases(golden: Sequence[GoldenClaim], path: Path) -> list[GoldenClaim
     return [c for c in golden if c.case_id in wanted]
 
 
+def _judge_gateway(args: argparse.Namespace) -> JudgeGatewayFactory:
+    def make(per_day_usd: float | None) -> Gateway:
+        from claimlens.llm.factory import build_gateway
+
+        return build_gateway(args.config, Path.cwd(), per_day_usd=per_day_usd)
+
+    return make
+
+
+def _save_run(results: Sequence[CaseResult], run_dir: Path) -> None:
+    from claimlens.agent.evidence import render_evidence
+    from claimlens.evals.judge import JudgeItem
+    from claimlens.evals.judge_export import save_case
+    from claimlens.knowledge.clauses import load_wordings
+
+    text = {c.clause_id: c.text for c in load_wordings(Path.cwd() / "knowledge" / "policies")}
+    for r in results:
+        if r.state is None or r.state.recommendation is None:
+            continue
+        rec = r.state.recommendation
+        save_case(
+            run_dir,
+            JudgeItem(
+                case_id=r.case_id,
+                evidence=render_evidence(r.state).text,
+                recommendation=rec,
+                clauses={c: text.get(c, "(unknown clause)") for c in rec.policy_citations},
+            ),
+        )
+
+
+def _agent_quality(
+    cases: Sequence[GoldenClaim], results: Sequence[CaseResult], config_dir: Path
+) -> AgentQuality:
+    from claimlens.evals.agent_metrics import agent_quality
+    from claimlens.knowledge.clauses import load_wordings
+
+    policies = load_policies(config_dir / "policies.toml")
+    wording_of_policy = {}
+    for case in cases:
+        record = policies.get_record(case.policy_id)
+        if record is not None:
+            wording_of_policy[case.policy_id] = record.wording
+    clauses = {c.clause_id: c.wording for c in load_wordings(Path.cwd() / "knowledge" / "policies")}
+    return agent_quality(cases, results, wording_of_policy, clauses.get)
+
+
 def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     cases = load_golden(args.golden)
     if args.cases is not None:
+        if args.scorecard is not None:
+            print("error: --scorecard needs the full golden set; drop --cases", file=sys.stderr)
+            return 2
         cases = _select_cases(cases, args.cases)
     detector = _make_detector(args, factory)
     agent_versions: set[str] = set()
@@ -557,9 +708,40 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
         generated_on=date.today(),
     )
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    summary = agent_summary(results) if args.agent == "llm" else None
-    report = render_report(cases, results, metrics, meta, what_if=what_if, agent=summary)
+    summary = quality = None
+    if args.agent == "llm":
+        summary = agent_summary(results)
+        quality = _agent_quality(cases, results, args.config)
+    report = render_report(
+        cases, results, metrics, meta, what_if=what_if, agent=summary, quality=quality
+    )
     args.report.write_text(report, encoding="utf-8")
+    if args.save_run is not None:
+        _save_run(results, args.save_run)
+    if args.scorecard is not None:
+        from claimlens.evals.scorecard import Scorecard, fingerprints, scorecard_metrics
+        from claimlens.evals.triage import mean_list_cost
+        from claimlens.llm.config import load_llm_config
+
+        card = Scorecard(
+            created_on=date.today(),
+            golden=args.golden.as_posix(),
+            versions={
+                "agent": meta.agent_version,
+                "detector": meta.model_version,
+                "decision_policy": meta.decision_policy_version,
+            },
+            metrics=scorecard_metrics(
+                metrics,
+                summary,
+                quality,
+                list_cost_mean=mean_list_cost(results, load_llm_config(args.config / "llm.toml")),
+            ),
+            fingerprints=fingerprints(Path.cwd(), args.golden),
+            cases=len(results),
+        )
+        args.scorecard.parent.mkdir(parents=True, exist_ok=True)
+        args.scorecard.write_text(card.model_dump_json(indent=1) + "\n", encoding="utf-8")
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     print(
         f"Cases: {metrics.total}  Route accuracy: {metrics.route_accuracy:.2f}  "

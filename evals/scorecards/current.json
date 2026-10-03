@@ -1,0 +1,37 @@
+{
+ "created_on": "2026-10-03",
+ "golden": "evals/golden/v2/claims.jsonl",
+ "versions": {
+  "agent": "triage-agent-v1+triage/v1",
+  "detector": "fused:damage-yolo11s-v1+parts-yolo11n-v1+T0.80",
+  "decision_policy": "decision-policy-v1"
+ },
+ "metrics": {
+  "route_accuracy": 0.76,
+  "escalation_recall": 1.0,
+  "citation_validity": 1.0,
+  "citation_hit_rate": 1.0,
+  "narrative_catch_rate": 1.0,
+  "benign_pass_rate": 0.3,
+  "agent_failure_rate": 0.0,
+  "cost_mean_usd": 0.00999596,
+  "judge_pass_rate": null
+ },
+ "fingerprints": {
+  "config/agent.toml": "591d025b1b96efc14fd204fa47e35c2b6fa307c3b59dcb46e11e183673ad25a1",
+  "config/agents.toml": "a45cc6297602ef063517b548506afbf1cbd8d8bf8a58a0935677f7055f9a2578",
+  "config/decision_policy.toml": "697aca830804914204c058567c7eede0e51f2bc38da7689d1f36519f130fb8bb",
+  "config/llm.toml": "7c868fc36a0d8c71a8a29ca2c0c84b8092703dcd5dfd05da0e74b26715209e0c",
+  "config/models.toml": "0ddd1524af33332482ef8a10c9bb0514d9a7f74e9683804a166d2dff5b5fe054",
+  "config/policies.toml": "fd92cf50167d88a65ba697ad535cb06d91039703dd25299bababc477291995ad",
+  "config/rate_card.toml": "a6ce3daf94dacc7afe5c69f99b6a2abfd577a6d3f735e0651e17802b8143d62b",
+  "config/taxonomy.toml": "19ad59cfdeb1a01a39c5eab6172746a54fcf479d88ca8f1af3bfcb539c7f0b05",
+  "evals/golden/v2/claims.jsonl": "6647f53aebeebe261b905ef6f0ece60d6aa310a66e8d53caed607f23e40017f5",
+  "knowledge/policies/basic.md": "33343c54027fd13717b4169a50cb167c7e316e50e6f88b1db5944599aa80e942",
+  "knowledge/policies/premium.md": "969462a6e46946abde5cb9b9daa324bada099f721493d4591f4f1f4d91e36432",
+  "knowledge/policies/standard.md": "ad37502b3bb6f23ee81ab112f194871fd8bacc2899e84e332e5fb514eefe9573",
+  "prompts/judge/v1.md": "ffdda46a6d5c69e4508c73244af1b824bc14e314b595939da37f6e83393d08af",
+  "prompts/triage/v1.md": "802bcae6ce1d32f38b09381b121afeabdd44c16e05bfbaba971ad3ec61b3ba36"
+ },
+ "cases": 150
+}

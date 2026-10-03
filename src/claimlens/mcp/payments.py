@@ -9,7 +9,6 @@ from uuid import UUID
 
 from pydantic import Field
 
-from claimlens.domain import Route
 from claimlens.events.envelope import Actor, ActorKind
 from claimlens.events.payloads import PaymentIssued
 from claimlens.events.projection import find_by_idempotency_key, fold
@@ -18,6 +17,7 @@ from claimlens.mcp.base import AuditSink, ScopedServer, tool_errors
 from claimlens.mcp.guard import verify_approval
 from claimlens.mcp.profiles import Profile
 from claimlens.mcp.schemas import PaymentResult
+from claimlens.review_queue import payable
 
 
 def _utc_now() -> datetime:
@@ -47,10 +47,9 @@ def build_payments(
                 uuid = UUID(claim_id)
                 events = store.load(uuid)
                 state = fold(events)
-                if state.decision is None:
-                    raise ValueError("the claim has no decision yet, so it cannot be paid")
-                if state.decision.route is Route.FRAUD_REVIEW:
-                    raise ValueError("claims routed to FRAUD_REVIEW are never paid automatically")
+                refusal = payable(state)
+                if refusal is not None:
+                    raise ValueError(f"this claim cannot be paid: {refusal}")
                 existing = find_by_idempotency_key(events, idempotency_key, "PaymentIssued")
                 if existing is not None:
                     return PaymentResult(

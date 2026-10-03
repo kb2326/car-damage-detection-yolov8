@@ -46,6 +46,11 @@ review = [
 agent = [
   "langgraph>=1.2,<2",
 ]
+tracing = [
+  "openinference-instrumentation-langchain>=0.1.78",
+  "opentelemetry-exporter-otlp-proto-http>=1.45",
+  "opentelemetry-sdk>=1.45",
+]
 knowledge = [
   "fastembed>=0.8,<0.9",
   "lancedb>=0.39,<0.40",
