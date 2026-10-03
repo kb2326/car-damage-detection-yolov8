@@ -34,6 +34,11 @@ class CaseResult:
     agent_error: str = ""
 
 
+def _cell(text: str) -> str:
+    """Text safe for one Markdown table cell."""
+    return " ".join(text.split()).replace("|", r"\|")
+
+
 def agent_counts(events: Sequence[ClaimEvent]) -> tuple[int, int, float, str]:
     """Model calls, tool calls, LLM cost and the agent's failure (if any) on one claim's log."""
     llm = [e for e in events if e.type == "LLMCalled"]
@@ -261,4 +266,26 @@ def render_report(
             f"| Total cost of this run | ${agent.cost_total_usd:.2f} |",
             f"| Agent failures (sent to a person) | {failures} |",
         ]
+        held = [
+            r
+            for r in results
+            if r.rule_id in ("R7", "R8") and r.state is not None and r.state.recommendation
+        ]
+        if held:
+            lines += [
+                "",
+                "## Claims the agent held back (R7, R8)",
+                "",
+                "| Case | Expected | Rule | Agent said | Rationale | Open questions |",
+                "|---|---|---|---|---|---|",
+            ]
+            for r in held:
+                advice = r.state.recommendation if r.state is not None else None
+                assert advice is not None
+                questions = " ".join(advice.open_questions) or "-"
+                lines.append(
+                    f"| {r.case_id} | {r.expected.value} | {r.rule_id} "
+                    f"| {advice.route_suggestion.value}, {advice.confidence.value} "
+                    f"| {_cell(advice.rationale)} | {_cell(questions)} |"
+                )
     return "\n".join(lines) + "\n"

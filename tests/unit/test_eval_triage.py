@@ -282,3 +282,38 @@ def test_case_results_count_llm_and_tool_events(tmp_path: Path) -> None:
     llm_calls, tool_calls, cost, error = agent_counts(events)
     assert (llm_calls, tool_calls, error) == (2, 1, "AgentFailed: step limit")
     assert cost == pytest.approx(0.03)
+
+
+def test_report_explains_claims_the_agent_held_back() -> None:
+    from uuid import uuid4
+
+    from claimlens.domain import AgentRecommendation, Confidence
+    from claimlens.evals.triage import agent_summary
+    from claimlens.events.projection import ClaimState
+
+    case = GoldenClaim(
+        case_id="a",
+        scenario="s",
+        policy_id="P-1001",
+        description="",
+        photos=("x.jpg",),
+        expected_route=Route.FAST_TRACK,
+        label_source="t",
+    )
+    state = ClaimState(claim_id=uuid4(), policy_id="P-1001", description="")
+    state.recommendation = AgentRecommendation(
+        route_suggestion=Route.FAST_TRACK,
+        confidence=Confidence.MEDIUM,
+        rationale="Damage | matches the story.",
+        citations=(),
+        open_questions=("Was the second photo | taken the same day?",),
+    )
+    held = CaseResult("a", "s", Route.FAST_TRACK, Route.ADJUSTER_REVIEW, rule_id="R7", state=state)
+    meta = ReportMeta("g.jsonl", "m", "agent", "p", date(2026, 10, 3))
+    metrics = compute_triage_metrics([(Route.FAST_TRACK, Route.ADJUSTER_REVIEW)])
+    report = render_report([case], [held], metrics, meta, agent=agent_summary([held]))
+    assert "## Claims the agent held back (R7, R8)" in report
+    assert (
+        r"| a | FAST_TRACK | R7 | FAST_TRACK, medium | Damage \| matches the story. "
+        r"| Was the second photo \| taken the same day? |"
+    ) in report
