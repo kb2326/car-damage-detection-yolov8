@@ -114,3 +114,33 @@ def test_the_intake_command_lists_sessions_and_reports_a_missing_key(
 
     assert main(["intake"], intake_factory=no_key) == 2  # type: ignore[arg-type]
     assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
+
+
+def test_the_intake_command_files_and_routes_a_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from claimlens.cli import main
+    from claimlens.events.store import SQLiteEventStore
+    from claimlens.intake_agent.session import pipeline_submitter
+    from tests.fakes import FakeDetector, make_test_deps
+    from tests.unit.test_intake_graph import CONFIG
+
+    db = tmp_path / "claims.db"
+    store = SQLiteEventStore(db)
+    deps = make_test_deps(tmp_path, store, FakeDetector())
+    submit = pipeline_submitter(lambda: deps, CONFIG, process=True)
+    sessions, conn = _sessions(tmp_path, FakeProvider(list(SCRIPT)), submit)
+    lines = iter(
+        [
+            "P-1001, reversed into a bollard yesterday",
+            *(f"/photo {photo(tmp_path / f'{k}.png')}" for k in ("o", "c", "p")),
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda: next(lines))
+    code = main(["--db", str(db), "intake"], intake_factory=lambda args: sessions)
+    conn.close()
+    store.close()
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "/photo <path> sends a photo" in out
+    assert "(Back office) Route: FAST_TRACK (R9)" in out
