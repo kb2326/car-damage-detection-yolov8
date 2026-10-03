@@ -106,6 +106,7 @@ class AgentRecommendation(Frozen):
     rationale: str
     citations: tuple[str, ...]
     open_questions: tuple[str, ...] = ()
+    policy_citations: tuple[str, ...] = ()
 
 
 class Decision(Frozen):
