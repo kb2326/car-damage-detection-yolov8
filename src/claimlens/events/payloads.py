@@ -38,6 +38,7 @@ class EventType(StrEnum):
     TOOL_CALLED = "ToolCalled"
     LLM_CALLED = "LLMCalled"
     HUMAN_REVIEWED = "HumanReviewed"
+    INTAKE_COMPLETED = "IntakeCompleted"
 
 
 class Payload(Frozen):
@@ -105,6 +106,19 @@ class ReviewAction(StrEnum):
     OVERRIDE = "override"
     DENY = "deny"  # only a person can deny; no model, agent or rule produces this
     REQUEST_INFO = "request_info"
+
+
+class IntakeCompleted(Payload):
+    """What the intake conversation collected. The transcript itself stays out of the log."""
+
+    event_type: ClassVar[EventType] = EventType.INTAKE_COMPLETED
+    session_id: str
+    facts: dict[str, str]
+    photo_kinds: dict[str, str]  # kind -> photo id
+    photo_gaps: dict[str, str]  # kind -> why it is missing
+    turns: int
+    retakes: int
+    transcript_sha256: str
 
 
 class HumanReviewed(Payload):
@@ -203,6 +217,7 @@ PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
         ToolCalled,
         LLMCalled,
         HumanReviewed,
+        IntakeCompleted,
     )
 }
 
