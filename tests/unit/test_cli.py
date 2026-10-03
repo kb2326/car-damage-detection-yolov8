@@ -222,3 +222,66 @@ def test_default_agent_is_the_stub(
         agent_factory=factory,
     )
     assert code == 0
+
+
+def test_eval_triage_can_run_a_subset(tmp_path: Path) -> None:
+    from claimlens.cli import _select_cases
+    from claimlens.evals.golden import load_golden
+
+    golden = load_golden(CONFIG_DIR.parent / "evals" / "golden" / "v1" / "claims.jsonl")
+    cases = tmp_path / "cases.txt"
+    cases.write_text("g002\n# comment\n\ng001\n", encoding="utf-8")
+    assert [c.case_id for c in _select_cases(golden, cases)] == ["g001", "g002"]
+    cases.write_text("nope\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unknown case id"):
+        _select_cases(golden, cases)
+
+
+def test_dev20_is_a_valid_stratified_subset() -> None:
+    from claimlens.cli import _select_cases
+    from claimlens.evals.golden import load_golden
+
+    root = CONFIG_DIR.parent / "evals" / "golden" / "v1"
+    subset = _select_cases(load_golden(root / "claims.jsonl"), root / "dev20.txt")
+    routes = [c.expected_route.value for c in subset]
+    assert len(subset) == 20
+    assert (routes.count("ADJUSTER_REVIEW"), routes.count("FAST_TRACK")) == (12, 6)
+    assert routes.count("FRAUD_REVIEW") == 2
+
+
+def test_llm_daily_cap_reaches_the_agent_factory(
+    tmp_path: Path, make_image: Callable[..., Path]
+) -> None:
+    caps: list[float | None] = []
+
+    def factory(args: argparse.Namespace, store_path: Path) -> _AdvisingAgent:
+        caps.append(args.llm_daily_cap)
+        return _AdvisingAgent()
+
+    golden = tmp_path / "g.jsonl"
+    golden.write_text(
+        '{"case_id":"x1","scenario":"s","policy_id":"P-1001","description":"d",'
+        f'"photos":["{make_image("a.jpg").as_posix()}"],"expected_route":"ADJUSTER_REVIEW",'
+        '"label_source":"t"}\n',
+        encoding="utf-8",
+    )
+    code = main(
+        [
+            "--config",
+            str(CONFIG_DIR),
+            "--agent",
+            "llm",
+            "eval-triage",
+            "--golden",
+            str(golden),
+            "--report",
+            str(tmp_path / "r.md"),
+            "--llm-daily-cap",
+            "5",
+        ],
+        detector_factory=lambda *_: FakeDetector(),
+        agent_factory=factory,
+    )
+    assert code == 0
+    assert caps == [5.0]
+    assert "## Agent" in (tmp_path / "r.md").read_text(encoding="utf-8")

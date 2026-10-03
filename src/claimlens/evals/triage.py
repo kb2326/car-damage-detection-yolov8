@@ -12,6 +12,7 @@ from claimlens.decision import DecisionConfig, decide
 from claimlens.domain import Route
 from claimlens.evals.golden import GoldenClaim
 from claimlens.evals.metrics import TriageMetrics, compute_triage_metrics
+from claimlens.events.envelope import ClaimEvent
 from claimlens.events.projection import ClaimState, fold
 from claimlens.intake import submit_claim
 from claimlens.workflow import PipelineDeps, process_claim
@@ -27,6 +28,56 @@ class CaseResult:
     reason: str = ""
     error: str = ""
     state: ClaimState | None = None
+    llm_calls: int = 0
+    tool_calls: int = 0
+    llm_cost_usd: float = 0.0
+    agent_error: str = ""
+
+
+def agent_counts(events: Sequence[ClaimEvent]) -> tuple[int, int, float, str]:
+    """Model calls, tool calls, LLM cost and the agent's failure (if any) on one claim's log."""
+    llm = [e for e in events if e.type == "LLMCalled"]
+    tools = sum(e.type == "ToolCalled" for e in events)
+    cost = sum(float(e.payload["cost_usd"]) for e in llm)
+    error = next(
+        (
+            str(e.payload["error"])
+            for e in events
+            if e.type == "StageFailed" and e.payload.get("stage") == "agent"
+        ),
+        "",
+    )
+    return len(llm), tools, cost, error
+
+
+@dataclass(frozen=True)
+class AgentSummary:
+    cases: int
+    llm_calls_mean: float
+    tool_calls_mean: float
+    cost_total_usd: float
+    cost_mean_usd: float
+    cost_max_usd: float
+    agent_failures: dict[str, int]
+
+
+def agent_summary(results: Sequence[CaseResult]) -> AgentSummary:
+    n = max(len(results), 1)
+    costs = [r.llm_cost_usd for r in results]
+    failures: dict[str, int] = {}
+    for r in results:
+        if r.agent_error:
+            kind = r.agent_error.split(":", 1)[0]
+            failures[kind] = failures.get(kind, 0) + 1
+    return AgentSummary(
+        cases=len(results),
+        llm_calls_mean=sum(r.llm_calls for r in results) / n,
+        tool_calls_mean=sum(r.tool_calls for r in results) / n,
+        cost_total_usd=sum(costs),
+        cost_mean_usd=sum(costs) / n,
+        cost_max_usd=max(costs, default=0.0),
+        agent_failures=dict(sorted(failures.items())),
+    )
 
 
 @dataclass(frozen=True)
@@ -56,6 +107,8 @@ def run_case(case: GoldenClaim, deps: PipelineDeps, repo_root: Path) -> CaseResu
         photo_paths=[repo_root / p for p in case.photos],
     )
     decision = process_claim(claim_id, deps)
+    events = deps.store.load(claim_id)
+    llm_calls, tool_calls, cost, agent_error = agent_counts(events)
     return CaseResult(
         case_id=case.case_id,
         scenario=case.scenario,
@@ -63,7 +116,11 @@ def run_case(case: GoldenClaim, deps: PipelineDeps, repo_root: Path) -> CaseResu
         predicted=decision.route,
         rule_id=decision.rule_id,
         reason=decision.reason,
-        state=fold(deps.store.load(claim_id)),
+        state=fold(events),
+        llm_calls=llm_calls,
+        tool_calls=tool_calls,
+        llm_cost_usd=cost,
+        agent_error=agent_error,
     )
 
 
@@ -118,6 +175,7 @@ def render_report(
     metrics: TriageMetrics,
     meta: ReportMeta,
     what_if: Sequence[tuple[float, TriageMetrics]] = (),
+    agent: AgentSummary | None = None,
 ) -> str:
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     reviewed = sum(case.reviewed for case in cases)
@@ -188,4 +246,19 @@ def render_report(
             lines.append(
                 f"| {threshold:.2f} | {m.route_accuracy:.2f} | {rec} | {fast} of {expected_fast} |"
             )
+    if agent is not None:
+        failures = ", ".join(f"{k}: {v}" for k, v in agent.agent_failures.items()) or "none"
+        lines += [
+            "",
+            "## Agent",
+            "",
+            "| Measure | Value |",
+            "|---|---|",
+            f"| Model calls per claim (mean) | {agent.llm_calls_mean:.1f} |",
+            f"| Tool calls per claim (mean) | {agent.tool_calls_mean:.1f} |",
+            f"| Cost per claim (mean / max) | ${agent.cost_mean_usd:.3f} / "
+            f"${agent.cost_max_usd:.3f} |",
+            f"| Total cost of this run | ${agent.cost_total_usd:.2f} |",
+            f"| Agent failures (sent to a person) | {failures} |",
+        ]
     return "\n".join(lines) + "\n"

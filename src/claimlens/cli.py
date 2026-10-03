@@ -24,9 +24,15 @@ from claimlens.data.records import read_records, write_records
 from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
 from claimlens.domain import Frozen, Route
-from claimlens.evals.golden import load_golden, write_golden
+from claimlens.evals.golden import GoldenClaim, load_golden, write_golden
 from claimlens.evals.metrics import compute_triage_metrics
-from claimlens.evals.triage import ReportMeta, render_report, run_triage_eval, what_if_thresholds
+from claimlens.evals.triage import (
+    ReportMeta,
+    agent_summary,
+    render_report,
+    run_triage_eval,
+    what_if_thresholds,
+)
 from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
@@ -241,6 +247,15 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = sub.add_parser("eval-triage", help="score the pipeline on golden claims")
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
+    evaluate.add_argument(
+        "--cases", type=Path, default=None, help="run only the case ids listed in this file"
+    )
+    evaluate.add_argument(
+        "--llm-daily-cap",
+        type=float,
+        default=None,
+        help="raise the LLM daily cap (USD) for this run only; the claim cap still applies",
+    )
     evaluate.add_argument(
         "--what-if",
         type=_thresholds,
@@ -505,8 +520,20 @@ def _inspect(args: argparse.Namespace, store: SQLiteEventStore) -> int:
     return 0
 
 
+def _select_cases(golden: Sequence[GoldenClaim], path: Path) -> list[GoldenClaim]:
+    """The golden cases whose ids are listed in `path` (one per line; # comments), in file order."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    wanted = {line.split("#", 1)[0].strip() for line in lines} - {""}
+    unknown = sorted(wanted - {c.case_id for c in golden})
+    if unknown:
+        raise ValueError(f"unknown case id(s) in {path}: {', '.join(unknown)}")
+    return [c for c in golden if c.case_id in wanted]
+
+
 def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     cases = load_golden(args.golden)
+    if args.cases is not None:
+        cases = _select_cases(cases, args.cases)
     detector = _make_detector(args, factory)
     agent_versions: set[str] = set()
 
@@ -530,7 +557,8 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
         generated_on=date.today(),
     )
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    report = render_report(cases, results, metrics, meta, what_if=what_if)
+    summary = agent_summary(results) if args.agent == "llm" else None
+    report = render_report(cases, results, metrics, meta, what_if=what_if, agent=summary)
     args.report.write_text(report, encoding="utf-8")
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     print(
