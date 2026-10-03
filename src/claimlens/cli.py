@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
+from claimlens.agent import TriageAgent
 from claimlens.agent.stub import StubTriageAgent
 from claimlens.autolabel.job import AutolabelJob, load_autolabel_jobs, run_autolabel
 from claimlens.autolabel.labeller import PartLabeller
@@ -65,6 +66,18 @@ from claimlens.workflow import PipelineDeps, process_claim
 DEFAULT_WEIGHTS = Path("models/legacy/yolov8n-cardamage-v6.pt")
 DetectorFactory = Callable[["DetectorSpec"], Detector]
 LabellerFactory = Callable[[AutolabelJob], PartLabeller]
+AgentFactory = Callable[[argparse.Namespace, Path], TriageAgent]
+
+
+def _llm_agent(args: argparse.Namespace, store_path: Path) -> TriageAgent:
+    from claimlens.agent.factory import build_llm_agent
+
+    return build_llm_agent(
+        args.config,
+        Path.cwd(),
+        store_path,
+        per_day_usd=getattr(args, "llm_daily_cap", None),
+    )
 
 
 class DetectorSpec(Frozen):
@@ -195,6 +208,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, default=Path("config"))
     parser.add_argument("--weights", type=Path, default=None)
     parser.add_argument("--detector", choices=["legacy", "yolo-seg", "fused"], default=None)
+    parser.add_argument(
+        "--agent",
+        choices=["stub", "llm"],
+        default="stub",
+        help="triage agent: rule-based stub (default) or the LLM agent (needs ANTHROPIC_API_KEY)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="submit a claim and process it")
@@ -250,7 +269,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def make_deps(
-    store: SQLiteEventStore, blobs: BlobStore, config_dir: Path, detector: Detector
+    store: SQLiteEventStore,
+    blobs: BlobStore,
+    config_dir: Path,
+    detector: Detector,
+    agent: TriageAgent | None = None,
 ) -> PipelineDeps:
     return PipelineDeps(
         store=store,
@@ -259,7 +282,7 @@ def make_deps(
         policies=load_policies(config_dir / "policies.toml"),
         rate_card=load_rate_card(config_dir / "rate_card.toml"),
         decision_config=load_decision_config(config_dir / "decision_policy.toml"),
-        agent=StubTriageAgent(),
+        agent=agent or StubTriageAgent(),
     )
 
 
@@ -296,10 +319,12 @@ def main(
     segmenter_factory: SegmenterFactory = _ultralytics_segmenter,
     exporter: ExporterFactory = _export_onnx,
     embedder_factory: EmbedderFactory = _fastembedder,
+    agent_factory: AgentFactory = _llm_agent,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "knowledge":
         return run_knowledge_command(args, embedder_factory=embedder_factory)
+    args.agent_factory = agent_factory
     try:
         return _dispatch(
             args, detector_factory, labeller_factory, trainer_factory, segmenter_factory, exporter
@@ -307,10 +332,34 @@ def main(
     except DetectorUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    except AgentUnavailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 class DetectorUnavailableError(RuntimeError):
     pass
+
+
+class AgentUnavailableError(RuntimeError):
+    pass
+
+
+def _make_agent(args: argparse.Namespace, store_path: Path) -> TriageAgent | None:
+    """None means the stub. The LLM agent is built only when asked for."""
+    if args.agent != "llm":
+        return None
+    from claimlens.llm.types import LLMError
+
+    try:
+        agent: TriageAgent = args.agent_factory(args, store_path)
+    except ImportError:
+        raise AgentUnavailableError(
+            "the LLM agent needs the agent group: uv sync --group agent --group knowledge"
+        ) from None
+    except LLMError as exc:
+        raise AgentUnavailableError(str(exc)) from None
+    return agent
 
 
 def _dispatch(
@@ -350,8 +399,9 @@ def _dispatch(
 
 
 def _run(args: argparse.Namespace, store: SQLiteEventStore, factory: DetectorFactory) -> int:
+    agent = _make_agent(args, args.db)
     blobs = BlobStore(args.blobs)
-    deps = make_deps(store, blobs, args.config, _make_detector(args, factory))
+    deps = make_deps(store, blobs, args.config, _make_detector(args, factory), agent)
     claim_id = submit_claim(
         store, blobs, policy_id=args.policy, description=args.description, photo_paths=args.photos
     )
@@ -374,7 +424,10 @@ def _resume(args: argparse.Namespace, store: SQLiteEventStore, factory: Detector
     except ChainIntegrityError as exc:
         print(f"error: audit log failed verification: {exc}", file=sys.stderr)
         return 1
-    deps = make_deps(store, BlobStore(args.blobs), args.config, _make_detector(args, factory))
+    agent = _make_agent(args, args.db)
+    deps = make_deps(
+        store, BlobStore(args.blobs), args.config, _make_detector(args, factory), agent
+    )
     process_claim(args.claim_id, deps)
     print(format_summary(fold(store.load(args.claim_id))))
     return 0
@@ -455,10 +508,13 @@ def _inspect(args: argparse.Namespace, store: SQLiteEventStore) -> int:
 def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     cases = load_golden(args.golden)
     detector = _make_detector(args, factory)
+    agent_versions: set[str] = set()
 
     def make(case_dir: Path) -> PipelineDeps:
         store = SQLiteEventStore(case_dir / "claims.db")
-        return make_deps(store, BlobStore(case_dir / "blobs"), args.config, detector)
+        agent = _make_agent(args, case_dir / "claims.db") or StubTriageAgent()
+        agent_versions.add(agent.agent_version)
+        return make_deps(store, BlobStore(case_dir / "blobs"), args.config, detector, agent)
 
     with tempfile.TemporaryDirectory() as workdir:
         results = run_triage_eval(cases, make, repo_root=Path.cwd(), workdir=Path(workdir))
@@ -469,7 +525,7 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     meta = ReportMeta(
         golden_path=args.golden.as_posix(),
         model_version=detector.model_version,
-        agent_version=StubTriageAgent.agent_version,
+        agent_version=", ".join(sorted(agent_versions)) or StubTriageAgent.agent_version,
         decision_policy_version=decision_config.version,
         generated_on=date.today(),
     )

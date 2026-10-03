@@ -1,3 +1,4 @@
+import argparse
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -6,6 +7,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from claimlens.cli import DetectorSpec, main
+from claimlens.domain import AgentRecommendation, Confidence, Route
+from claimlens.events.projection import ClaimState
 from tests.fakes import CONFIG_DIR, FakeDetector, SimulatedCrashError
 
 
@@ -132,3 +135,90 @@ def test_approve_payment_prints_a_token_for_decided_claims(
     assert main([*base, "approve-payment", claim, "300"]) == 0
     assert len(capsys.readouterr().out.strip()) > 40
     assert main([*base, "approve-payment", str(uuid4()), "300"]) == 2
+
+
+class _AdvisingAgent:
+    agent_version = "test-llm-agent"
+
+    def recommend(self, state: ClaimState) -> AgentRecommendation:
+        return AgentRecommendation(
+            route_suggestion=Route.ADJUSTER_REVIEW,
+            confidence=Confidence.HIGH,
+            rationale="Delivery use is excluded.",
+            citations=(),
+            policy_citations=("STD-8.5",),
+        )
+
+
+def test_run_with_the_llm_agent_uses_the_agent_factory(
+    tmp_path: Path, make_image: Callable[..., Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    seen: list[Path] = []
+
+    def factory(args: argparse.Namespace, store_path: Path) -> _AdvisingAgent:
+        seen.append(store_path)
+        return _AdvisingAgent()
+
+    base = ["--db", str(tmp_path / "claims.db"), "--blobs", str(tmp_path / "blobs")]
+    code = main(
+        [
+            *base,
+            "--config",
+            str(CONFIG_DIR),
+            "--agent",
+            "llm",
+            "run",
+            "--policy",
+            "P-1001",
+            str(make_image("a.jpg")),
+        ],
+        detector_factory=lambda *_: FakeDetector(),
+        agent_factory=factory,
+    )
+    assert code == 0
+    assert seen == [tmp_path / "claims.db"]
+    assert "Route: ADJUSTER_REVIEW (R8)" in capsys.readouterr().out
+
+
+def test_llm_agent_without_a_key_exits_with_a_clear_message(
+    tmp_path: Path, make_image: Callable[..., Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    from claimlens.llm.types import LLMUnavailable
+
+    def factory(args: argparse.Namespace, store_path: Path) -> _AdvisingAgent:
+        raise LLMUnavailable("set ANTHROPIC_API_KEY in .env to use the LLM gateway")
+
+    base = ["--db", str(tmp_path / "claims.db"), "--blobs", str(tmp_path / "blobs")]
+    code = main(
+        [
+            *base,
+            "--config",
+            str(CONFIG_DIR),
+            "--agent",
+            "llm",
+            "run",
+            "--policy",
+            "P-1001",
+            str(make_image("a.jpg")),
+        ],
+        detector_factory=lambda *_: FakeDetector(),
+        agent_factory=factory,
+    )
+    assert code == 2
+    assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
+    assert not (tmp_path / "blobs").exists()  # nothing was submitted
+
+
+def test_default_agent_is_the_stub(
+    tmp_path: Path, make_image: Callable[..., Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    def factory(args: argparse.Namespace, store_path: Path) -> _AdvisingAgent:
+        raise AssertionError("the LLM agent must not be built by default")
+
+    base = ["--db", str(tmp_path / "claims.db"), "--blobs", str(tmp_path / "blobs")]
+    code = main(
+        [*base, "--config", str(CONFIG_DIR), "run", "--policy", "P-1001", str(make_image("a.jpg"))],
+        detector_factory=lambda *_: FakeDetector(),
+        agent_factory=factory,
+    )
+    assert code == 0
