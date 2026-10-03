@@ -2,8 +2,8 @@
 name: exclusion-review
 description: How to check a story that mentions work use, racing, another driver, alcohol or drugs, or a late report.
 version: 1
-approved_by: ""
-approved_on: ""
+approved_by: "Owner (kb2326)"
+approved_on: "2026-10-03"
 ---
 1. Search the customer's wording for the exclusion the story raises:
    - deliveries, paid passengers, renting the car out: commercial use (*-8.5);

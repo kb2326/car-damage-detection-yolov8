@@ -2,8 +2,8 @@
 name: flat-tyre-claims
 description: How to assess a claim where the only damage found is a flat tyre.
 version: 1
-approved_by: ""
-approved_on: ""
+approved_by: "Owner (kb2326)"
+approved_on: "2026-10-03"
 ---
 1. A flat tyre on its own is usually a puncture or wear, not collision damage. Wear and tear is
    excluded in every wording (BAS-8.3, STD-8.3, PRM-8.3).

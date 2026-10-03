@@ -2,8 +2,8 @@
 name: glass-claims
 description: How to assess a claim where the main damage is glass (windscreen, windows) or a broken lamp.
 version: 1
-approved_by: ""
-approved_on: ""
+approved_by: "Owner (kb2326)"
+approved_on: "2026-10-03"
 ---
 1. Find the customer's wording with search_policy_clauses ("glass", "windscreen").
 2. Glass cover differs by wording:
