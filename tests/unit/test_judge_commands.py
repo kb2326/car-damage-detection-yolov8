@@ -204,3 +204,60 @@ def test_eval_triage_can_save_the_run(tmp_path: Path, make_image) -> None:  # ty
     assert set(saved) == {"case_id", "evidence", "recommendation", "clauses"}
     assert saved["clauses"]["STD-8.5"].startswith("We do not cover damage")
     assert "<claimant_description>d</claimant_description>" in saved["evidence"]
+
+
+def test_a_validated_judge_adds_its_pass_rate_to_the_scorecard(tmp_path: Path) -> None:
+    from claimlens.evals.scorecard import Scorecard
+
+    run = _run_dir(tmp_path, 4)
+    judgements = tmp_path / "judgements.jsonl"
+    main(
+        ["judge", "run", "--run-dir", str(run), "--out", str(judgements)],
+        judge_gateway_factory=_factory(tmp_path, [_answer(True), _answer(False)] * 2),
+    )
+    main(
+        [
+            "judge",
+            "export",
+            "--judgements",
+            str(judgements),
+            "--run-dir",
+            str(run),
+            "--out",
+            str(tmp_path / "p.html"),
+        ]
+    )
+    sample = json.loads((tmp_path / "sample.json").read_text(encoding="utf-8"))
+    rows = {
+        json.loads(line)["case_id"]: json.loads(line)["verdict"]
+        for line in judgements.read_text(encoding="utf-8").splitlines()
+    }
+    labels = tmp_path / "judge-labels.json"
+    labels.write_text(
+        json.dumps({"labeller": "o", "labels": {i: {"label": rows[i]} for i in sample}})
+    )
+    card = tmp_path / "current.json"
+    card.write_text(
+        Scorecard(
+            created_on=date(2026, 10, 3),
+            golden="g",
+            versions={},
+            metrics={"judge_pass_rate": None},
+            fingerprints={},
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+    args = [
+        "judge",
+        "agreement",
+        "--judgements",
+        str(judgements),
+        "--labels",
+        str(labels),
+        "--scorecard",
+        str(card),
+    ]
+    assert main(args) == 0
+    saved = Scorecard.model_validate_json(card.read_text(encoding="utf-8"))
+    assert saved.metrics["judge_pass_rate"] == 0.5
+    assert saved.versions["judge"] == "judge/v1"

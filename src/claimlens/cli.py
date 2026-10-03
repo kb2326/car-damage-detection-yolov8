@@ -256,6 +256,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
     evaluate.add_argument(
+        "--scorecard", type=Path, default=None, help="write the gate's scorecard JSON here"
+    )
+    evaluate.add_argument(
         "--save-run",
         type=Path,
         default=None,
@@ -276,6 +279,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="comma-separated confidence thresholds, e.g. 0.25,0.40,0.55",
     )
+
+    gate = sub.add_parser("eval-gate", help="CI: check the committed scorecard (no models, no key)")
+    gate.add_argument("--root", type=Path, default=Path("."))
+    gate.add_argument("--current", type=Path, default=Path("evals/scorecards/current.json"))
+    gate.add_argument("--baseline", type=Path, default=Path("evals/scorecards/baseline.json"))
 
     data = sub.add_parser("data", help="fetch and build datasets")
     data_sub = data.add_subparsers(dest="data_command", required=True)
@@ -405,6 +413,15 @@ def _dispatch(
 ) -> int:
     if args.command == "eval-triage":
         return _eval_triage(args, detector_factory)
+    if args.command == "eval-gate":
+        from claimlens.evals.scorecard import load_gate_config, run_eval_gate
+
+        return run_eval_gate(
+            args.root,
+            args.root / args.current,
+            args.root / args.baseline,
+            load_gate_config(args.config / "eval_gate.toml"),
+        )
     if args.command == "data":
         return _data(args, labeller_factory)
     if args.command == "review":
@@ -632,6 +649,22 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     args.report.write_text(report, encoding="utf-8")
     if args.save_run is not None:
         _save_run(results, args.save_run)
+    if args.scorecard is not None:
+        from claimlens.evals.scorecard import Scorecard, fingerprints, scorecard_metrics
+
+        card = Scorecard(
+            created_on=date.today(),
+            golden=args.golden.as_posix(),
+            versions={
+                "agent": meta.agent_version,
+                "detector": meta.model_version,
+                "decision_policy": meta.decision_policy_version,
+            },
+            metrics=scorecard_metrics(metrics, summary, quality),
+            fingerprints=fingerprints(Path.cwd(), args.golden),
+        )
+        args.scorecard.parent.mkdir(parents=True, exist_ok=True)
+        args.scorecard.write_text(card.model_dump_json(indent=1) + "\n", encoding="utf-8")
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     print(
         f"Cases: {metrics.total}  Route accuracy: {metrics.route_accuracy:.2f}  "

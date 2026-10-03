@@ -16,6 +16,7 @@ from claimlens.evals.judge_export import (
     render_label_page,
     sample_for_labelling,
 )
+from claimlens.evals.scorecard import Scorecard
 from claimlens.llm.gateway import Gateway
 from claimlens.llm.prompts import load_prompt
 
@@ -39,6 +40,9 @@ def add_judge_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -
     agree = jsub.add_parser("agreement", help="compare the judge with the owner's labels")
     agree.add_argument("--judgements", type=Path, required=True)
     agree.add_argument("--labels", type=Path, required=True, help="judge-labels.json")
+    agree.add_argument(
+        "--scorecard", type=Path, default=None, help="add the judge pass rate if validated"
+    )
 
 
 def _load_judgements(path: Path) -> list[Judgement]:
@@ -76,7 +80,8 @@ def run_judge_command(args: argparse.Namespace, gateway_factory: JudgeGatewayFac
         args.out.write_text(render_label_page([items[i] for i in sample]), encoding="utf-8")
         print(f"Wrote {len(sample)} items to {args.out}")
         return 0
-    verdicts = {j.case_id: j.verdict for j in _load_judgements(args.judgements)}
+    loaded = _load_judgements(args.judgements)
+    verdicts = {j.case_id: j.verdict for j in loaded}
     sample = json.loads(_sample_path(args.judgements).read_text(encoding="utf-8"))
     labels = load_labels(args.labels)
     result = compute_agreement({i: verdicts[i] for i in sample}, labels)
@@ -92,4 +97,15 @@ def run_judge_command(args: argparse.Namespace, gateway_factory: JudgeGatewayFac
         print(f"Judge is below the bar (agreement {min_agreement:.2f}, kappa {min_kappa:.2f})")
         return 1
     print("Judge is validated")
+    if args.scorecard is not None:
+        card = Scorecard.model_validate_json(args.scorecard.read_text(encoding="utf-8"))
+        rate = sum(j.verdict == "pass" for j in loaded) / len(loaded)
+        card = card.model_copy(
+            update={
+                "metrics": {**card.metrics, "judge_pass_rate": rate},
+                "versions": {**card.versions, "judge": loaded[0].judge_version},
+            }
+        )
+        args.scorecard.write_text(card.model_dump_json(indent=1) + "\n", encoding="utf-8")
+        print(f"Judge pass rate {rate:.2f} added to {args.scorecard}")
     return 0

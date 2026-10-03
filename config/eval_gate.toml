@@ -2,3 +2,13 @@
 # The LLM judge counts only when it agrees with the owner's labels at least this well.
 judge_min_agreement = 0.80
 judge_min_kappa = 0.60
+
+# The CI gate on the committed scorecard (claimlens eval-gate).
+must_equal_one = ["escalation_recall", "citation_validity"]
+max_cost_increase = 0.25 # mean cost per claim may rise at most 25% above the baseline
+
+[max_drop] # how far each metric may fall below the baseline
+route_accuracy = 0.02
+narrative_catch_rate = 0.05
+benign_pass_rate = 0.10
+judge_pass_rate = 0.05
