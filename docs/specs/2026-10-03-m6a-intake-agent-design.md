@@ -86,7 +86,8 @@ ClaimLens: That's everything I need. Your claim number is 3f2aâ€¦. A summary: â€
   this).
 - These coaching checks are used **only in intake**. The pipeline's quality gate is unchanged, so
   golden v1/v2 results and the CI gate do not move.
-- A failed photo gets a short reason and a retake request, **at most 2 retakes per kind**. After
+- A failed photo gets a short reason and a retake request: **the first try plus at most 2 retakes
+  per kind** (3 photos at most). After
   that the agent moves on, and the claim records `photo_gaps` (for example `plate: too blurry
   after 2 retakes`).
 - At least one usable photo is required to submit. With none, the claim is still submitted and
