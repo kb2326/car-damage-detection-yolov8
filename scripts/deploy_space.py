@@ -1,9 +1,11 @@
-"""Deploy the read-only showcase to a Hugging Face Space (M8b, ADR 0020).
+"""Deploy the read-only showcase to a free static Hugging Face Space (M8b, ADR 0020).
 
-Stages only what the showcase image needs (no data, weights, tests or secrets), then uploads it
-with the Hugging Face Hub API. Used by .github/workflows/deploy-space.yml; also runnable locally:
+Hugging Face charges for Docker Spaces, so the showcase is exported as plain static pages: the
+real app renders every page once (claimlens.web.static_export). Only those pages, the stylesheet,
+the credited photos and the Space README are uploaded. Used by .github/workflows/deploy-space.yml;
+also runnable locally:
 
-    HF_TOKEN=... uv run --no-project --with huggingface_hub \
+    HF_TOKEN=... uv run --with huggingface_hub==0.35.3 \\
         python scripts/deploy_space.py <owner>/claimlens
 """
 
@@ -16,21 +18,16 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ("Dockerfile", ".dockerignore", "pyproject.toml", "uv.lock", "LICENSE")
-FOLDERS = ("src", "config", "showcase")
-# Never staged, even if present in the working tree: secrets and SQLite side files.
-IGNORE = shutil.ignore_patterns(
-    "__pycache__", "*.pyc", ".env*", "*-journal", "*.db-wal", "*.db-shm"
-)
 
 
 def stage(root: Path, out: Path) -> None:
-    """Copy the showcase app into `out`, with the Space's README (front matter) as README.md."""
-    out.mkdir(parents=True, exist_ok=True)
-    for name in FILES:
-        shutil.copy2(root / name, out / name)
-    for folder in FOLDERS:
-        shutil.copytree(root / folder, out / folder, ignore=IGNORE, dirs_exist_ok=True)
+    """Export the static showcase from root/showcase into `out`, with the Space README."""
+    from claimlens.web.serve import showcase_services
+    from claimlens.web.settings import load_web_settings
+    from claimlens.web.static_export import export_site
+
+    settings = load_web_settings(root / "config" / "web.toml")
+    export_site(showcase_services(root / "showcase", settings), out)
     shutil.copy2(root / "hf-space" / "README.md", out / "README.md")
 
 
@@ -38,7 +35,7 @@ def deploy(space: str, token: str) -> None:
     from huggingface_hub import HfApi
 
     api = HfApi(token=token)
-    api.create_repo(space, repo_type="space", space_sdk="docker", exist_ok=True)
+    api.create_repo(space, repo_type="space", space_sdk="static", exist_ok=True)
     with tempfile.TemporaryDirectory() as folder:
         stage(ROOT, Path(folder))
         api.upload_folder(

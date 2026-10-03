@@ -310,10 +310,11 @@ uv run claimlens serve --showcase --data showcase      # locally, http://127.0.0
 docker build -t claimlens-showcase . && docker run -p 7860:7860 claimlens-showcase
 ```
 
-To publish it on Hugging Face Spaces: add a Hugging Face write token as the repository secret
-`HF_TOKEN` and the Space name (for example `your-name/claimlens`) as the variable `HF_SPACE`, then
-run the **Deploy showcase to Hugging Face** workflow (or publish a release). To rebuild the samples:
-`uv run python scripts/build_showcase.py` (about $0.15).
+**Live:** [huggingface.co/spaces/kb2606/claimlens](https://huggingface.co/spaces/kb2606/claimlens),
+a free static Space: the same pages rendered once (`claimlens.web.static_export`), since Hugging
+Face charges for Docker Spaces. To publish: the repository secret `HF_TOKEN` (a Hugging Face write
+token) and variable `HF_SPACE`, then run the **Deploy showcase to Hugging Face** workflow. To
+rebuild the samples: `uv run python scripts/build_showcase.py` (about $0.15).
 
 ## Use ClaimLens from Claude Code (MCP)
 

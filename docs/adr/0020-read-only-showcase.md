@@ -43,10 +43,18 @@ strangers' LLM spend, the CarDD-trained weights on a public server, and abuse ha
   `HF_SPACE` variable. CI is unchanged.
 - **Dropped from M8:** drift monitoring (nothing live to monitor), sign-in (nothing to protect).
 
+**Amended (2026-10-03, at first deploy):** Hugging Face requires a paid PRO subscription for
+Docker Spaces, even on the free CPU tier; static Spaces stay free. The showcase never changes, so
+the deploy now **exports it as static pages**: `claimlens.web.static_export` renders every page
+once with the real app (chat, claims list and filters, one page per claim), rewrites links to
+files, copies the stylesheet and the credited photos, and drops the page scripts (nothing runs).
+`scripts/deploy_space.py` publishes that folder as a free static Space (`sdk: static`); tested
+to stage only web files. The Docker image stays for running the live showcase anywhere else.
+
 ## Consequences
 
 - Anyone can see the product and its reasoning; nobody can use or abuse it, and it costs nothing
-  to run (free CPU Space; it sleeps after about 48 hours without visitors).
+  to run (a free static Space: no server, nothing to attack, no sleeping).
 - What the showcase shows is honest: of five claims none is fast-tracked, because the agent and
   the rules are cautious on these photos; the reasons are on each claim page.
 - Building the samples surfaced an intake weakness: when a customer cannot send a requested photo,

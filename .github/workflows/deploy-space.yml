@@ -17,8 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: Install the web app (it renders the static pages)
+        run: uv sync --locked --group web --group agent
       - name: Deploy
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ vars.HF_SPACE }}
-        run: uv run --no-project --with "huggingface_hub==0.35.3" python scripts/deploy_space.py "$HF_SPACE"
+        run: uv run --with "huggingface_hub==0.35.3" python scripts/deploy_space.py "$HF_SPACE"
