@@ -61,9 +61,9 @@ New package `src/claimlens/web/`:
 - **One event store per request and per worker.** The SQLite store is opened through a FastAPI
   dependency that yields a new `SQLiteEventStore` and closes it afterwards; the worker opens its
   own. No connection is shared across threads.
-- **`claimlens serve`** starts uvicorn on `127.0.0.1` (the port from `--port`, default 8000) and
-  accepts the existing `--agent stub|llm` (default `llm`) and `--memory` switches. Memory is on by
-  default for `serve`.
+- **`claimlens serve`** starts uvicorn on `127.0.0.1` (the port from `--port`, default 8000). It
+  uses the LLM triage agent and the claim memory by default; `--stub-agent` and `--no-memory` turn
+  them off (for free local runs).
 - **New dependencies:** `jinja2`, `uvicorn`, `python-multipart` (uploads); `playwright` as a dev
   dependency for the one browser test.
 
