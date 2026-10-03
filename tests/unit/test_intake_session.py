@@ -186,3 +186,27 @@ def test_build_intake_wires_the_real_policy_lookup(tmp_path: Path, store: SQLite
     turn = sessions.reply(first.session_id, "P-1003")
     assert turn.message == "Thanks. What happened?"
     assert "Recorded policy_id = P-1003" in fake.calls[2]["messages"][-1].tool_results[0].content
+
+
+def test_file_intake_claim_files_once_and_never_processes(
+    tmp_path: Path, store: SQLiteEventStore
+) -> None:
+    from claimlens.blobs import BlobStore
+    from claimlens.intake_agent.session import file_intake_claim
+
+    blobs = BlobStore(tmp_path / "blobs")
+    state: Any = {
+        "session_id": "s-file",
+        "facts": {"policy_id": "P-1001", "what_happened": "Bollard."},
+        "photos": {"overview": photo(tmp_path / "o.png")},
+        "gaps": {},
+        "turns": 4,
+        "retakes": {},
+        "transcript": [{"role": "user", "text": "hi"}],
+    }
+    first = file_intake_claim(store, blobs, state, CONFIG)
+    again = file_intake_claim(store, blobs, state, CONFIG)
+    assert first == again
+    types = [e.type for e in store.load(first)]
+    assert types.count("IntakeCompleted") == 1
+    assert "RouteDecided" not in types

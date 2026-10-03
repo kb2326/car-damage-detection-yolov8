@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="chat" aria-labelledby="chat-title">
+  <div>
+    <p class="eyebrow">Customer</p>
+    <h1 id="chat-title">File a claim</h1>
+    <p class="muted">Tell us what happened. We will ask for a few details and three photos: the whole car, the damage close up, and the number plate.</p>
+  </div>
+  <ol id="messages" class="messages" aria-live="polite"></ol>
+  <form id="chat-form" class="composer" hidden>
+    <label for="text" class="sr">Your answer</label>
+    <input id="text" name="text" autocomplete="off" maxlength="4000" placeholder="Type your answer">
+    <button id="send" type="submit" class="primary">Send</button>
+    <label id="photo-label" for="photo" class="photo-pick" hidden>Add the photo</label>
+    <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+  </form>
+  <button id="start" type="button" class="primary">Start a claim</button>
+  <p id="chat-error" class="error" role="alert" hidden></p>
+  <p id="done" class="done" hidden></p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/chat.js"></script>{% endblock %}

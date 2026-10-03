@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="alert danger" role="alert">
+  <h1>Log failed verification</h1>
+  <p>The audit log of claim <span class="mono">{{ claim_id }}</span> has been changed since it was written.
+     Nobody can act on this claim until it is investigated.</p>
+</div>
+{% endblock %}

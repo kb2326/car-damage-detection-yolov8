@@ -28,6 +28,14 @@ def effective_route(state: ClaimState) -> Route | None:
     return state.decision.route
 
 
+def awaits_person(state: ClaimState) -> bool:
+    """The effective route needs a person and no one has closed the claim (approve or deny).
+    An override into a review route, or a request for information, keeps it open."""
+    if effective_route(state) not in _REVIEW_ROUTES:
+        return False
+    return state.review is None or state.review.action not in _CLOSING
+
+
 def pending_reviews(store: SQLiteEventStore, route: Route | None = None) -> list[ClaimState]:
     """Claims whose effective route needs a person and that no one has closed, oldest first.
 
@@ -37,13 +45,11 @@ def pending_reviews(store: SQLiteEventStore, route: Route | None = None) -> list
     for claim_id in store.claim_ids():
         events = store.load(claim_id)
         state = fold(events)
-        current = effective_route(state)
-        if current not in _REVIEW_ROUTES:
+        if not awaits_person(state):
             continue
-        if route is not None and current is not route:
+        if route is not None and effective_route(state) is not route:
             continue
-        if state.review is None or state.review.action not in _CLOSING:
-            pending.append((events[0].occurred_at.isoformat(), state))
+        pending.append((events[0].occurred_at.isoformat(), state))
     return [state for _, state in sorted(pending, key=lambda item: item[0])]
 
 
