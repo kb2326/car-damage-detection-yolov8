@@ -19,7 +19,8 @@
       <td>{{ r.policy_id }}</td>
       <td class="mono">{{ r.filed_at.replace("T", " ")[:16] }}</td>
       <td><span class="chip s-{{ r.status }}">{{ r.status.replace("_", " ") }}</span></td>
-      <td>{% if r.route %}<span class="chip r-{{ r.route }}">{{ r.route }}</span>{% endif %}</td>
+      <td>{% if r.route %}<span class="chip r-{{ r.route }}">{{ r.route }}</span>{% endif %}
+        {% if r.final_route and r.final_route != r.route %}<span class="muted">→</span> <span class="chip r-{{ r.final_route }}">{{ r.final_route }}</span>{% endif %}</td>
       <td class="mono">{{ r.rule_id or "" }}</td>
       <td>{{ (r.review_action or "").replace("_", " ") }}</td>
     </tr>

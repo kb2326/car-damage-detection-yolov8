@@ -15,6 +15,8 @@ class WebSettings(Frozen):
     port: int = Field(default=8000, ge=1, le=65535)
     max_upload_mb: int = Field(default=10, ge=1, le=50)
     poll_seconds: float = Field(default=1.0, gt=0, le=10)
+    # Host names the app answers to; anything else (DNS rebinding) is refused.
+    allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost")
 
 
 def load_web_settings(path: Path) -> WebSettings:

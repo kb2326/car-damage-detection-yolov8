@@ -15,7 +15,6 @@ from claimlens.web.views import claim_detail
 
 router = APIRouter(include_in_schema=False)
 Services = Annotated[WebServices, Depends(get_services)]
-_REVIEW = {"ADJUSTER_REVIEW", "FRAUD_REVIEW"}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -28,10 +27,10 @@ def claims_page(
     request: Request, services: Services, filter: Literal["all", "review", "fraud"] = "all"
 ) -> HTMLResponse:
     rows = list_claims(services)
-    if filter == "review":  # decided, on a review route, and no person has closed it yet
-        rows = [r for r in rows if r.route in _REVIEW and r.status == "decided"]
-    elif filter == "fraud":
-        rows = [r for r in rows if r.route == "FRAUD_REVIEW"]
+    if filter == "review":  # the same rule as `claimlens queue`
+        rows = [r for r in rows if r.needs_review]
+    elif filter == "fraud":  # the route that counts now, after any override
+        rows = [r for r in rows if r.final_route == "FRAUD_REVIEW"]
     return templates.TemplateResponse(
         request, "claims.html", {"title": "Claims", "rows": rows, "filter": filter}
     )

@@ -23,7 +23,7 @@ def services(tmp_path: Path) -> Iterator[WebServices]:
     yield WebServices(
         db_path=db,
         blobs=BlobStore(tmp_path / "blobs"),  # the same folder deps() uses
-        settings=WebSettings(max_upload_mb=1),
+        settings=WebSettings(max_upload_mb=1, allowed_hosts=("testserver", "127.0.0.1")),
         runner=ClaimRunner(Worker("claims", inline=True), process),
         intake_worker=intake_worker,
         intake=None,

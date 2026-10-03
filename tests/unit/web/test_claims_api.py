@@ -105,10 +105,10 @@ def test_a_failed_run_shows_its_error(
     client: TestClient, services: WebServices, tmp_path: Path
 ) -> None:
     claim = _filed(services, tmp_path, "c.png")
-    services.runner._errors[claim] = "RuntimeError: detector crashed"
+    services.runner._errors[claim] = "Processing stopped unexpectedly (RuntimeError)."
     detail = client.get(f"/api/claims/{claim}").json()
     assert detail["status"] == "stopped"
-    assert detail["error"] == "RuntimeError: detector crashed"
+    assert detail["error"] == "Processing stopped unexpectedly (RuntimeError)."
 
 
 def test_the_api_is_documented(client: TestClient) -> None:

@@ -8,6 +8,8 @@
   <div class="verdict">
     {% if c.route %}<span class="chip big r-{{ c.route }}">{{ c.route }}</span>
       <span class="mono">{{ c.rule_id }}</span>{% endif %}
+    {% if c.final_route and c.final_route != c.route %}<span class="muted">changed by a reviewer to</span>
+      <span class="chip big r-{{ c.final_route }}">{{ c.final_route }}</span>{% endif %}
     <span class="chip s-{{ c.status }}">{{ c.status }}</span>
     <span class="verified" title="Every event's fingerprint matches the chain">Log verified · {{ c.event_count }} events</span>
   </div>
@@ -15,7 +17,7 @@
 {% if c.decision_reason %}<p class="reason">{{ c.decision_reason }}</p>{% endif %}
 {% if c.status == "stopped" %}
   <div class="alert" role="alert">
-    <p>Processing stopped{% if c.error %}: {{ c.error }}{% endif %}. The claim's log keeps every finished step.</p>
+    <p>Processing stopped{% if c.stopped_at %} at <strong>{{ c.stopped_at }}</strong>{% endif %}.{% if c.error %} {{ c.error }}{% endif %} The claim's log keeps every finished step.</p>
     <button id="resume" type="button" class="primary">Resume</button>
   </div>
 {% endif %}

@@ -56,7 +56,7 @@ def test_a_failure_is_kept_as_the_claims_error() -> None:
     runner = ClaimRunner(Worker("claims", inline=True), boom)
     claim = uuid4()
     runner.start(claim)
-    assert runner.error(claim) == "RuntimeError: detector crashed"
+    assert runner.error(claim) == "Processing stopped unexpectedly (RuntimeError)."
     assert not runner.running(claim)
 
 

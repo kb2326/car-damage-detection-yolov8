@@ -78,9 +78,11 @@ class ClaimSummary(BaseModel):
     policy_id: str
     filed_at: str
     status: ClaimStatus
-    route: str | None = None
+    route: str | None = None  # what the rules decided
     rule_id: str | None = None
     review_action: str | None = None
+    final_route: str | None = None  # the route that counts now (a reviewer's override wins)
+    needs_review: bool = False  # waits for a person, as in `claimlens queue`
 
 
 class ClaimDetail(ClaimSummary):
@@ -99,7 +101,8 @@ class ClaimDetail(ClaimSummary):
     chain_ok: bool
     event_count: int
     events: list[EventItem]
-    error: str | None = None
+    error: str | None = None  # a plain message; details stay in the server log
+    stopped_at: str | None = None  # the stage a stopped claim did not finish
 
 
 class ReviewRequest(BaseModel):

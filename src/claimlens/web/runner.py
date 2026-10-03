@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from uuid import UUID
 
 from claimlens.web.workers import Worker
+
+log = logging.getLogger(__name__)
 
 
 class ClaimRunner:
@@ -31,8 +34,9 @@ class ClaimRunner:
         try:
             self._process(claim_id)
         except Exception as exc:  # the claim stays resumable from its log
+            log.exception("processing claim %s stopped", claim_id)  # details stay server-side
             with self._lock:
-                self._errors[claim_id] = f"{type(exc).__name__}: {exc}"
+                self._errors[claim_id] = f"Processing stopped unexpectedly ({type(exc).__name__})."
         finally:
             with self._lock:
                 self._running.discard(claim_id)

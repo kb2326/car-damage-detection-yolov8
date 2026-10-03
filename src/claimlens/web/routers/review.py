@@ -32,6 +32,8 @@ def review_claim(claim_id: str, body: ReviewRequest, services: Services) -> dict
     except ValidationError as exc:
         message = str(exc.errors()[0]["msg"]).removeprefix("Value error, ")
         raise HTTPException(422, message[:1].upper() + message[1:] + ".") from None
+    if services.runner.running(cid):
+        raise HTTPException(409, "This claim is still being processed. Try again in a moment.")
     with services.open_store() as store:
         if fold(load_claim(store, cid)).decision is None:
             raise HTTPException(409, "This claim has not been decided yet.")

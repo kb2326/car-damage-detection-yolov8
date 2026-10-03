@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 from claimlens.events.envelope import ClaimEvent
 from claimlens.events.projection import ClaimState, PhotoStatus, fold
+from claimlens.review_queue import awaits_person, effective_route
 from claimlens.web.schemas import (
     AgentView,
     Box,
@@ -198,6 +199,8 @@ def claim_summary(state: ClaimState, events: Sequence[ClaimEvent], running: bool
         route=state.decision.route.value if state.decision else None,
         rule_id=state.decision.rule_id if state.decision else None,
         review_action=state.review.action.value if state.review else None,
+        final_route=final.value if (final := effective_route(state)) else None,
+        needs_review=awaits_person(state),
     )
 
 
@@ -221,11 +224,16 @@ def claim_detail(
     similar: list[SimilarView],
 ) -> ClaimDetail:
     summary = claim_summary(state, events, running)
+    stages = stage_timeline(events, running)
+    stopped_at = None
+    if summary.status == "stopped":
+        unfinished = [s for s in stages if s.key in _PIPELINE and s.state in ("waiting", "failed")]
+        stopped_at = unfinished[0].label if unfinished else None
     return ClaimDetail(
         **summary.model_dump(),
         description=state.description,
         facts=dict(state.intake.facts) if state.intake else {},
-        stages=stage_timeline(events, running),
+        stages=stages,
         photos=photo_views(state, events),
         damage=[
             f"{f.damage_type.value}{' on ' + f.part if f.part else ''} ({f.confidence:.2f})"
@@ -250,4 +258,5 @@ def claim_detail(
             for e in events
         ],
         error=error,
+        stopped_at=stopped_at,
     )

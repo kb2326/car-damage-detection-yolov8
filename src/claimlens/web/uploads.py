@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
-_FORMATS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
+_FORMATS = {"JPEG": ".jpg", "MPO": ".jpg", "PNG": ".png", "WEBP": ".webp"}  # MPO: phone JPEGs
 
 
 class UploadError(ValueError):
