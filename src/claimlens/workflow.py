@@ -48,7 +48,8 @@ class PipelineDeps:
     decision_config: DecisionConfig
     agent: TriageAgent
     quality: QualityConfig = field(default_factory=QualityConfig)
-    memory: ClaimMemory | None = None  # written after each decision; never read by rules
+    # Written after each decision; read only by the integrity check (near-copy photos -> R1).
+    memory: ClaimMemory | None = None
 
 
 def process_claim(claim_id: UUID, deps: PipelineDeps) -> Decision:
@@ -158,7 +159,9 @@ def _integrity_stage(state: ClaimState, deps: PipelineDeps) -> None:
             state,
             deps,
             "integrity",
-            lambda: IntegrityChecked(signals=check_integrity(state, deps.store)),
+            lambda: IntegrityChecked(
+                signals=check_integrity(state, deps.store, deps.memory, deps.blobs.path)
+            ),
         )
 
 
