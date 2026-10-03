@@ -24,9 +24,11 @@ from claimlens.data.records import read_records, write_records
 from claimlens.data.taxonomy import load_part_groups
 from claimlens.decision import load_decision_config
 from claimlens.domain import Frozen, Route
+from claimlens.evals.agent_metrics import AgentQuality
 from claimlens.evals.golden import GoldenClaim, load_golden, write_golden
 from claimlens.evals.metrics import compute_triage_metrics
 from claimlens.evals.triage import (
+    CaseResult,
     ReportMeta,
     agent_summary,
     render_report,
@@ -530,6 +532,22 @@ def _select_cases(golden: Sequence[GoldenClaim], path: Path) -> list[GoldenClaim
     return [c for c in golden if c.case_id in wanted]
 
 
+def _agent_quality(
+    cases: Sequence[GoldenClaim], results: Sequence[CaseResult], config_dir: Path
+) -> AgentQuality:
+    from claimlens.evals.agent_metrics import agent_quality
+    from claimlens.knowledge.clauses import load_wordings
+
+    policies = load_policies(config_dir / "policies.toml")
+    wording_of_policy = {}
+    for case in cases:
+        record = policies.get_record(case.policy_id)
+        if record is not None:
+            wording_of_policy[case.policy_id] = record.wording
+    clauses = {c.clause_id: c.wording for c in load_wordings(Path.cwd() / "knowledge" / "policies")}
+    return agent_quality(cases, results, wording_of_policy, clauses.get)
+
+
 def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     cases = load_golden(args.golden)
     if args.cases is not None:
@@ -557,8 +575,13 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
         generated_on=date.today(),
     )
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    summary = agent_summary(results) if args.agent == "llm" else None
-    report = render_report(cases, results, metrics, meta, what_if=what_if, agent=summary)
+    summary = quality = None
+    if args.agent == "llm":
+        summary = agent_summary(results)
+        quality = _agent_quality(cases, results, args.config)
+    report = render_report(
+        cases, results, metrics, meta, what_if=what_if, agent=summary, quality=quality
+    )
     args.report.write_text(report, encoding="utf-8")
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     print(

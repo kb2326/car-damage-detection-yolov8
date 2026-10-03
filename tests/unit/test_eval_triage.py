@@ -342,3 +342,57 @@ def test_agent_section_counts_which_rule_decided() -> None:
     metrics = compute_triage_metrics([(r.expected, r.predicted) for r in results])
     report = render_report([case], results, metrics, meta, agent=summary)
     assert "| Decided by rule | R7: 2, R9: 1 |" in report
+
+
+def test_report_adds_agent_quality_and_missed_narrative_cases() -> None:
+    from uuid import uuid4
+
+    from claimlens.domain import AgentRecommendation, Confidence
+    from claimlens.evals.agent_metrics import AgentQuality
+    from claimlens.evals.triage import agent_summary
+    from claimlens.events.projection import ClaimState
+
+    case = GoldenClaim(
+        case_id="n001",
+        scenario="exclusion_racing",
+        policy_id="P-1001",
+        description="Track day.",
+        photos=("x.jpg",),
+        expected_route=Route.ADJUSTER_REVIEW,
+        label_source="t",
+        narrative=True,
+        expected_citations=("STD-8.1",),
+        must_not_fast_track_reason="racing",
+    )
+    state = ClaimState(claim_id=uuid4(), policy_id="P-1001", description="Track day.")
+    state.recommendation = AgentRecommendation(
+        route_suggestion=Route.FAST_TRACK,
+        confidence=Confidence.HIGH,
+        rationale="Covered collision.",
+        citations=(),
+    )
+    result = CaseResult(
+        "n001",
+        "exclusion_racing",
+        Route.ADJUSTER_REVIEW,
+        Route.ADJUSTER_REVIEW,
+        rule_id="R5",
+        state=state,
+    )
+    quality = AgentQuality(
+        citation_validity=1.0,
+        citation_hit_rate=None,
+        narrative_catch_rate=0.0,
+        benign_pass_rate=None,
+        agent_failure_rate=0.0,
+    )
+    meta = ReportMeta("g.jsonl", "m", "agent", "p", date(2026, 10, 3))
+    metrics = compute_triage_metrics([(Route.ADJUSTER_REVIEW, Route.ADJUSTER_REVIEW)])
+    report = render_report(
+        [case], [result], metrics, meta, agent=agent_summary([result]), quality=quality
+    )
+    assert "| Citation validity | 1.00 |" in report
+    assert "| Right clause cited (expected citations) | n/a |" in report
+    assert "| Narrative cases caught | 0.00 |" in report
+    assert "## Narrative cases the agent missed" in report
+    assert "| n001 | exclusion_racing | racing | FAST_TRACK, high | Covered collision. |" in report

@@ -284,4 +284,6 @@ def test_llm_daily_cap_reaches_the_agent_factory(
     )
     assert code == 0
     assert caps == [5.0]
-    assert "## Agent" in (tmp_path / "r.md").read_text(encoding="utf-8")
+    report = (tmp_path / "r.md").read_text(encoding="utf-8")
+    assert "## Agent" in report
+    assert "| Citation validity |" in report
