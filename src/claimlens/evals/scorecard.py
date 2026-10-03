@@ -32,7 +32,9 @@ FINGERPRINTED: tuple[str, ...] = (
 
 
 def fingerprints(repo_root: Path, golden: Path) -> dict[str, str]:
-    found = {p for pattern in FINGERPRINTED for p in repo_root.glob(pattern)}
+    repo_root = repo_root.resolve()
+    golden = (golden if golden.is_absolute() else repo_root / golden).resolve()
+    found = {p.resolve() for pattern in FINGERPRINTED for p in repo_root.glob(pattern)}
     paths = found | ({golden} if golden.is_file() else set())  # a missing file reads as stale
     return {
         p.relative_to(repo_root).as_posix(): hashlib.sha256(

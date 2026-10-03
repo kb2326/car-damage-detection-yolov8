@@ -209,3 +209,12 @@ def test_scorecard_from_results() -> None:
         "cost_mean_usd": 0.01,
         "judge_pass_rate": None,
     }
+
+
+def test_fingerprints_accept_a_relative_golden_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.chdir(root)
+    prints = fingerprints(Path.cwd(), Path("evals/golden/v2/claims.jsonl"))
+    assert "evals/golden/v2/claims.jsonl" in prints
