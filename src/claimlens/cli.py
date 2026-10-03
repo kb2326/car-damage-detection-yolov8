@@ -45,6 +45,12 @@ from claimlens.events.payloads import HumanReviewed, ReviewAction
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
 from claimlens.intake import submit_claim
+from claimlens.intake_agent.commands import (
+    IntakeFactory,
+    add_intake_parser,
+    default_factory,
+    run_intake_command,
+)
 from claimlens.knowledge.commands import (
     EmbedderFactory,
     add_knowledge_parser,
@@ -318,6 +324,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_train_parser(sub)
     add_knowledge_parser(sub)
     add_judge_parser(sub)
+    add_intake_parser(sub)
     return parser
 
 
@@ -374,6 +381,7 @@ def main(
     embedder_factory: EmbedderFactory = _fastembedder,
     agent_factory: AgentFactory = _llm_agent,
     judge_gateway_factory: JudgeGatewayFactory | None = None,
+    intake_factory: IntakeFactory | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "knowledge":
@@ -383,6 +391,16 @@ def main(
         if args.command == "judge":
             return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
         args.agent_factory = agent_factory
+        if args.command == "intake":
+
+            def pipeline(a: argparse.Namespace) -> PipelineDeps:
+                store = SQLiteEventStore(a.db)  # open for the life of the chat
+                detector = _make_detector(a, detector_factory)
+                return make_deps(
+                    store, BlobStore(a.blobs), a.config, detector, _make_agent(a, a.db)
+                )
+
+            return run_intake_command(args, intake_factory or default_factory(pipeline))
         return _dispatch(
             args, detector_factory, labeller_factory, trainer_factory, segmenter_factory, exporter
         )
