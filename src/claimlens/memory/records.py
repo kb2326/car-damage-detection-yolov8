@@ -10,7 +10,7 @@ from PIL import Image
 
 from claimlens.domain import Frozen
 from claimlens.events.envelope import ClaimEvent
-from claimlens.events.projection import ClaimState
+from claimlens.events.projection import ClaimState, PhotoStatus
 
 # Events a record is built from; their sequence numbers are the record's provenance.
 _SOURCES = ("DamageDetected", "CostEstimated", "IntakeCompleted", "RouteDecided", "HumanReviewed")
@@ -41,12 +41,22 @@ def phash_of(path: Path) -> str:
 
 
 def build_record(
-    state: ClaimState, events: Sequence[ClaimEvent], photo_path: Callable[[str], Path]
+    state: ClaimState,
+    events: Sequence[ClaimEvent],
+    photo_path: Callable[[str], Path],
+    *,
+    provisional: bool = False,
 ) -> MemoryRecord:
-    """The memory record for a decided claim. `photo_path` maps a blob name to its file."""
-    if state.decision is None:
+    """The memory record for a decided claim. `photo_path` maps a blob name to its file.
+
+    `provisional` builds a record for a claim still being decided, to search memory with; such a
+    record is never stored."""
+    if state.decision is None and not provisional:
         raise ValueError("only decided claims are remembered")
-    phashes = tuple(phash_of(photo_path(p.blob_name)) for p in state.accepted_photos)
+    decision = state.decision
+    # Every photo not rejected: accepted ones once processed, uploaded ones while provisional.
+    usable = [p for p in state.photos.values() if p.status is not PhotoStatus.REJECTED]
+    phashes = tuple(phash_of(photo_path(p.blob_name)) for p in usable)
     damage = "; ".join(
         sorted({f.damage_type.value + (f" on {f.part}" if f.part else "") for f in state.findings})
     )
@@ -56,7 +66,8 @@ def build_record(
     facts = state.intake.facts if state.intake else {}
     parts = [damage or "no damage found", f"estimate ${low}-${high}"]
     parts += [f"{name}: {facts[name]}" for name in _YES_NO_FACTS if name in facts]
-    parts.append(f"routed {state.decision.route.value} ({state.decision.rule_id})")
+    if decision is not None:
+        parts.append(f"routed {decision.route.value} ({decision.rule_id})")
     if review is not None:
         parts.append(f"reviewed: {review.action.value}")
     decided_on = next(
@@ -66,8 +77,8 @@ def build_record(
         claim_id=str(state.claim_id),
         policy_id=state.policy_id,
         decided_on=decided_on,
-        route=state.decision.route.value,
-        rule_id=state.decision.rule_id,
+        route=decision.route.value if decision else "",
+        rule_id=decision.rule_id if decision else "",
         review_action=review.action.value if review else "",
         final_route=review.final_route.value if review and review.final_route else "",
         damage=damage,

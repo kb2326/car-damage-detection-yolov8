@@ -132,3 +132,46 @@ def test_keys_are_scoped_to_the_event_type(tmp_path: Path) -> None:
     assert queued is not None
     assert queued["duplicate"] is False
     assert fold(SQLiteEventStore(db).load(claim)).queue == "fraud"
+
+
+def test_similar_claims_come_from_memory_with_outcomes(tmp_path: Path) -> None:
+    import json
+    from dataclasses import replace
+
+    from PIL import Image
+
+    from claimlens.intake import submit_claim
+    from claimlens.knowledge.embed import FakeEmbedder
+    from claimlens.memory.index import ClaimMemory
+    from claimlens.workflow import process_claim
+    from tests.fakes import FakeDetector, make_test_deps
+    from tests.unit.test_memory_index import resaved, scene
+
+    db = tmp_path / "claims.db"
+    store = SQLiteEventStore(db)
+    memory = ClaimMemory(tmp_path / "memory", FakeEmbedder())
+    deps = replace(make_test_deps(tmp_path, store, FakeDetector()), memory=memory)
+    original = scene(tmp_path / "car.png")
+    earlier = submit_claim(
+        store,
+        deps.blobs,
+        policy_id="P-2002",
+        description="Bob Smith hit me",
+        photo_paths=[original],
+    )
+    process_claim(earlier, deps)
+    copy = resaved(original, tmp_path / "copy.jpg")
+    with Image.open(copy) as image:
+        assert image.size == (384, 288)
+    now = submit_claim(store, deps.blobs, policy_id="P-1005", description="new", photo_paths=[copy])
+    store.close()
+    server = build_claims_system(
+        PROFILES["triage"], db, MemoryAudit(), memory=memory, photo_path=deps.blobs.path
+    )
+    result = call(server, "find_similar_claims", {"claim_id": str(now)})
+    items = json.loads(result.content[0].text)["items"]  # type: ignore[union-attr]
+    assert items[0]["claim_id"] == str(earlier)
+    assert items[0]["reason"] == "near-copy photo"
+    assert items[0]["route"] == "ADJUSTER_REVIEW"  # P-2002 has no collision cover (R4)
+    assert items[0]["distance"] <= 10
+    assert "Bob" not in result.content[0].text  # type: ignore[union-attr]

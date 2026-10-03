@@ -68,6 +68,12 @@ class ClaimHistory(BaseModel):
 class SimilarClaim(BaseModel):
     claim_id: str
     reason: str
+    route: str = ""  # the earlier claim's outcome (a reviewer's override wins)
+    review_action: str = ""
+    damage: str = ""
+    cost_low: int = 0
+    cost_high: int = 0
+    distance: int | None = None  # pHash bits apart, for a near-copy photo
 
 
 class SimilarClaims(BaseModel):

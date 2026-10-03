@@ -97,11 +97,16 @@ AgentFactory = Callable[[argparse.Namespace, Path], TriageAgent]
 def _llm_agent(args: argparse.Namespace, store_path: Path) -> TriageAgent:
     from claimlens.agent.factory import build_llm_agent
 
+    # The triage agent searches the same memory the workflow writes (var/memory for a claim,
+    # the case folder in an evaluation). Blobs sit next to the store in both layouts.
+    blobs = args.blobs if store_path == args.db else store_path.parent / "blobs"
     return build_llm_agent(
         args.config,
         Path.cwd(),
         store_path,
         per_day_usd=getattr(args, "llm_daily_cap", None),
+        memory=_open_memory(args, store_path.parent / "memory"),
+        photo_path=BlobStore(blobs).path,
     )
 
 

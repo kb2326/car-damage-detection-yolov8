@@ -1,5 +1,6 @@
 """MCP `claims-system` server (mock claims system): history, similar claims, notes, queues."""
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
@@ -13,6 +14,8 @@ from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
 from claimlens.mcp.base import AuditRecord, AuditSink, ScopedServer, tool_errors
 from claimlens.mcp.profiles import Profile
 from claimlens.mcp.schemas import ClaimHistory, EventRef, SimilarClaim, SimilarClaims, WriteResult
+from claimlens.memory.index import ClaimMemory
+from claimlens.memory.records import build_record
 
 
 def _parse(claim_id: str) -> UUID | None:
@@ -64,7 +67,14 @@ def _parts(state: ClaimState) -> set[str]:
     return {f.part for f in state.findings if f.part}
 
 
-def build_claims_system(profile: Profile, store_path: Path, audit: AuditSink) -> ScopedServer:
+def build_claims_system(
+    profile: Profile,
+    store_path: Path,
+    audit: AuditSink,
+    *,
+    memory: ClaimMemory | None = None,
+    photo_path: Callable[[str], Path] | None = None,
+) -> ScopedServer:
     server = ScopedServer("claims-system", profile, audit)
     actor = Actor(kind=ActorKind.AGENT, name=f"mcp:{profile.name}")
 
@@ -99,6 +109,12 @@ def build_claims_system(profile: Profile, store_path: Path, audit: AuditSink) ->
             if loaded is None:
                 return SimilarClaims(items=[])
             uuid, state = loaded
+            if memory is not None and photo_path is not None:
+                events = store.load(uuid)
+                mine = build_record(state, events, photo_path, provisional=True)
+                return SimilarClaims(
+                    items=[SimilarClaim(**s.model_dump()) for s in memory.similar(mine, limit)]
+                )
             items: list[SimilarClaim] = []
             for other in sorted(store.claim_ids(), key=str):
                 if other == uuid:
