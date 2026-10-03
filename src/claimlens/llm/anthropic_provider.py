@@ -13,7 +13,13 @@ from claimlens.llm.provider import (
     ProviderTransientError,
     billable_input_tokens,
 )
-from claimlens.llm.types import Message
+from claimlens.llm.types import Message, ToolSpec
+from claimlens.llm.wire import (
+    from_anthropic_content,
+    to_anthropic_messages,
+    to_anthropic_tool_choice,
+    to_anthropic_tools,
+)
 
 _TRANSIENT: tuple[type[Exception], ...] = (
     anthropic.APITimeoutError,
@@ -37,19 +43,31 @@ class AnthropicProvider:
         self._client: Any = anthropic.Anthropic(api_key=api_key, timeout=timeout_s, max_retries=0)
 
     def complete(
-        self, model: str, system: str, messages: Sequence[Message], max_tokens: int
+        self,
+        model: str,
+        system: str,
+        messages: Sequence[Message],
+        max_tokens: int,
+        tools: Sequence[ToolSpec] = (),
+        tool_choice: str | None = None,
     ) -> ProviderReply:
         system_blocks = (
             [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
             if system
             else []
         )
+        options: dict[str, Any] = {}
+        if tools:
+            options["tools"] = to_anthropic_tools(tools)
+            if tool_choice is not None:
+                options["tool_choice"] = to_anthropic_tool_choice(tool_choice)
         try:
             response = self._client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
                 system=system_blocks,
-                messages=[{"role": m.role, "content": m.content} for m in messages],
+                messages=to_anthropic_messages(messages),
+                **options,
             )
         except _TRANSIENT as exc:
             raise ProviderTransientError(f"{type(exc).__name__}") from None
@@ -60,9 +78,10 @@ class AnthropicProvider:
         except anthropic.APIError as exc:
             # Anything unclassified (413, 422, 409, validation of the response, ...) stops here.
             raise ProviderFatalError(f"{type(exc).__name__}") from None
-        text = "".join(block.text for block in response.content if block.type == "text")
+        text, tool_calls = from_anthropic_content(response.content)
         return ProviderReply(
             text=text,
+            tool_calls=tool_calls,
             input_tokens=billable_input_tokens(
                 int(response.usage.input_tokens),
                 getattr(response.usage, "cache_creation_input_tokens", None),
