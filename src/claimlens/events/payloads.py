@@ -41,6 +41,7 @@ class EventType(StrEnum):
     INTAKE_COMPLETED = "IntakeCompleted"
     MEMORY_WRITTEN = "MemoryWritten"
     MEMORY_FORGOTTEN = "MemoryForgotten"
+    MEMORY_WRITE_FAILED = "MemoryWriteFailed"
 
 
 class Payload(Frozen):
@@ -138,6 +139,13 @@ class MemoryForgotten(Payload):
 
     event_type: ClassVar[EventType] = EventType.MEMORY_FORGOTTEN
     reason: str
+
+
+class MemoryWriteFailed(Payload):
+    """Writing this claim to memory failed. Not a processing failure: the rules never see it."""
+
+    event_type: ClassVar[EventType] = EventType.MEMORY_WRITE_FAILED
+    error: str
 
 
 class HumanReviewed(Payload):
@@ -239,6 +247,7 @@ PAYLOAD_TYPES: dict[EventType, type[Payload]] = {
         IntakeCompleted,
         MemoryWritten,
         MemoryForgotten,
+        MemoryWriteFailed,
     )
 }
 

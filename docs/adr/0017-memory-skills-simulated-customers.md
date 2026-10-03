@@ -22,10 +22,15 @@ missing:
   - **Written only by the workflow:** after `RouteDecided`, and when `record_review` runs. Each
     write appends `MemoryWritten` (fields and source event numbers) to the claim's hash-chained
     log.
-  - A failed write is recorded as `StageFailed(memory)` and never changes the decision; a re-run
-    fills in a missed write.
-  - `claimlens memory rebuild | show | forget`; forgetting appends `MemoryForgotten` and keeps
-    the log.
+  - A failed write is recorded as `MemoryWriteFailed`, which the fold ignores, so it never reaches
+    the rules (a `StageFailed` would have sent a re-decided claim to R2). A re-run fills in a
+    missed write.
+  - `claimlens memory rebuild | show | forget`. Forgetting appends `MemoryForgotten` **first**,
+    for any known claim, even one that was never in memory; then it deletes the row and the old
+    LanceDB versions that still held it, so the data is gone from disk. A forgotten claim is
+    never written again: not by a re-run, a review or a rebuild.
+  - `rebuild` skips a claim it cannot read (for example a missing photo), reports it and carries
+    on.
   - **Opt-in** with `--memory`, so tests and CI never load the embedding model.
 - **Near-copy photos** use the perceptual hash the data pipeline already had, not a new image
   model. The threshold is **10 bits**, from measurements on golden photos:
@@ -42,8 +47,9 @@ missing:
   fraud review is M7's call.
 - **Agent Skills** (`skills/<name>/SKILL.md`, front matter plus a procedure):
   - three skills: `glass-claims`, `flat-tyre-claims` and `exclusion-review`;
-  - only skills with `approved_by` and an `approved_on` date load; **the owner approved all
-    three on 2026-10-03**;
+  - only skills with `approved_by` and an `approved_on` date load (`null`, `~` and empty quotes
+    count as no approval); **the owner approved all three on 2026-10-03**; a skipped skill is
+    logged with the reason;
   - the triage agent (prompt `triage/v2`) sees the approved list and calls `load_skill(name)`;
   - the recommendation records `skills_used` (`name@vN`);
   - an unknown name is a plain answer, not a tool error, so a typo cannot block a fast-track.
@@ -60,7 +66,9 @@ missing:
 
 ## Consequences
 
-- **Golden v2 with `triage/v2`, skills and memory:**
+- **Golden v2 with `triage/v2` and skills** (memory switched on, but each golden case runs in its
+  own empty memory so cases cannot leak into each other; `find_similar_claims` therefore found
+  nothing, and cross-claim memory is covered by unit tests, not by this run):
 
   | Metric | Before (v1) | Now |
   |---|---|---|
@@ -81,5 +89,6 @@ missing:
     designed.
 - **Limits:**
   - the near-copy check misses heavier crops;
-  - the personas are written by Claude;
+  - the personas are written by Claude, and none reports a claim late (more than 30 days), which
+    the spec listed;
   - the stdio MCP demo server does not use memory.

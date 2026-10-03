@@ -100,13 +100,15 @@ def _llm_agent(args: argparse.Namespace, store_path: Path) -> TriageAgent:
 
     # The triage agent searches the same memory the workflow writes (var/memory for a claim,
     # the case folder in an evaluation). Blobs sit next to the store in both layouts.
-    blobs = args.blobs if store_path == args.db else store_path.parent / "blobs"
+    own_claims = store_path == args.db
+    blobs = args.blobs if own_claims else store_path.parent / "blobs"
+    memory_dir = MEMORY_PATH if own_claims else store_path.parent / "memory"
     return build_llm_agent(
         args.config,
         Path.cwd(),
         store_path,
         per_day_usd=getattr(args, "llm_daily_cap", None),
-        memory=_open_memory(args, store_path.parent / "memory"),
+        memory=_open_memory(args, memory_dir),
         photo_path=BlobStore(blobs).path,
     )
 

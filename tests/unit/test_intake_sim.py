@@ -223,3 +223,28 @@ def test_eval_intake_without_a_key_exits_2(
     )
     assert code == 2
     assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("style", "extra", "error"),
+    [
+        ("story-changer", {}, "wrong_days_ago"),
+        ("photo-trouble", {}, "photo_trouble"),
+    ],
+)
+def test_a_persona_style_needs_its_flag(
+    tmp_path: Path, style: str, extra: dict[str, object], error: str
+) -> None:
+    row = {
+        "persona_id": "p",
+        "style": style,
+        "story": "I hit a post.",
+        "policy_id": "P-1001",
+        "days_ago": 1,
+        "facts": {},
+        **extra,
+    }
+    path = tmp_path / "personas.jsonl"
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=error):
+        load_personas(path)

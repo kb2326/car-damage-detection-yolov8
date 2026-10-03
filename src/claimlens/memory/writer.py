@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import UUID
 
 from claimlens.events.envelope import Actor, ActorKind
-from claimlens.events.payloads import MemoryWritten, StageFailed
+from claimlens.events.payloads import MemoryWriteFailed, MemoryWritten
 from claimlens.events.projection import fold
 from claimlens.events.store import SQLiteEventStore
 from claimlens.memory.index import ClaimMemory
@@ -37,16 +37,19 @@ def remember(
     memory: ClaimMemory,
     photo_path: Callable[[str], Path],
 ) -> None:
-    """Write the claim to memory and record MemoryWritten. A failure is recorded, never raised:
-    memory must never change or block a decision."""
+    """Write the claim to memory and record MemoryWritten. A failure is recorded as
+    MemoryWriteFailed, never raised and never seen by the rules: memory must never change or block
+    a decision. A forgotten claim is never written again."""
     events = store.load(claim_id)
+    if any(e.type == "MemoryForgotten" for e in events):
+        return
     try:
         record = build_record(fold(events), events, photo_path)
         memory.upsert(record)
     except Exception as exc:
         store.append(
             claim_id,
-            StageFailed(stage="memory", error=f"{type(exc).__name__}: {exc}"),
+            MemoryWriteFailed(error=f"{type(exc).__name__}: {exc}"),
             MEMORY_WRITER,
         )
         return

@@ -5,12 +5,16 @@ Skills are written by people (or by Claude and approved by the owner), never by 
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 
 from claimlens.domain import Frozen
 
 MIN_BODY = 50
+_EMPTY = {"", "null", "~", "none"}  # YAML-style ways of writing "no value"
+
+log = logging.getLogger(__name__)
 
 
 class Skill(Frozen):
@@ -23,10 +27,18 @@ class Skill(Frozen):
 
 
 def _value(raw: str) -> str:
+    """A front-matter value: quoted text is kept whole (a # inside it stays); otherwise a comment
+    starts at a # after whitespace. YAML-style empty values (null, ~) read as empty."""
     text = raw.strip()
-    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
-        return text[1:-1]
-    return text
+    if text[:1] in ('"', "'"):
+        end = text.find(text[0], 1)
+        if end > 0:
+            return text[1:end]
+    for index, char in enumerate(text):
+        if char == "#" and (index == 0 or text[index - 1].isspace()):
+            text = text[:index].strip()
+            break
+    return "" if text.lower() in _EMPTY else text
 
 
 def parse_skill(path: Path) -> Skill:
@@ -39,7 +51,7 @@ def parse_skill(path: Path) -> Skill:
     for line in front.splitlines():
         if line.strip() and not line.lstrip().startswith("#"):
             key, _, raw = line.partition(":")
-            fields[key.strip()] = _value(raw.split(" #")[0])
+            fields[key.strip()] = _value(raw)
     for required in ("name", "description"):
         if not fields.get(required):
             raise ValueError(f"{path}: front matter needs a {required}")
@@ -90,4 +102,7 @@ def load_skills_report(root: Path) -> tuple[dict[str, Skill], list[str]]:
 
 
 def load_skills(root: Path) -> dict[str, Skill]:
-    return load_skills_report(root)[0]
+    loaded, skipped = load_skills_report(root)
+    for reason in skipped:
+        log.warning("skill not loaded: %s", reason)
+    return loaded

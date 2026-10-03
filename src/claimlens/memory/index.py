@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -76,11 +78,13 @@ class ClaimMemory:
         table.add([row])
 
     def forget(self, claim_id: str) -> bool:
+        """Delete the claim's row, and the old table versions that still hold it."""
         claim = _claim_id(claim_id)
         table = self._table()
         if table is None or self.get(claim) is None:
             return False
         table.delete(f"claim_id = '{claim}'")
+        table.optimize(cleanup_older_than=timedelta(0))  # LanceDB keeps old versions otherwise
         return True
 
     def get(self, claim_id: str) -> MemoryRecord | None:
@@ -139,14 +143,28 @@ class ClaimMemory:
         return list(found.values())[:limit]
 
 
-def rebuild(memory: ClaimMemory, store: SQLiteEventStore, photo_path: Callable[[str], Path]) -> int:
-    """Rebuild memory from every decided claim's log (memory is derived data)."""
+@dataclass(frozen=True)
+class RebuildResult:
+    remembered: int
+    skipped: list[str]  # "<claim id>: why"
+
+
+def rebuild(
+    memory: ClaimMemory, store: SQLiteEventStore, photo_path: Callable[[str], Path]
+) -> RebuildResult:
+    """Rebuild memory from every decided claim's log (memory is derived data). A claim that cannot
+    be read (say a missing photo) is skipped and reported; the rest carry on."""
     count = 0
+    skipped: list[str] = []
     for claim_id in store.claim_ids():
         events = store.load(claim_id)
         state = fold(events)
         if state.decision is None or any(e.type == "MemoryForgotten" for e in events):
             continue
-        memory.upsert(build_record(state, events, photo_path))
+        try:
+            memory.upsert(build_record(state, events, photo_path))
+        except Exception as exc:
+            skipped.append(f"{claim_id}: {type(exc).__name__}: {exc}")
+            continue
         count += 1
-    return count
+    return RebuildResult(remembered=count, skipped=skipped)

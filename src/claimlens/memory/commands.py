@@ -32,9 +32,11 @@ def run_memory_command(args: argparse.Namespace, embedder_factory: Callable[[], 
     store = SQLiteEventStore(args.db)
     try:
         if args.memory_command == "rebuild":
-            count = rebuild(memory, store, BlobStore(args.blobs).path)
-            print(f"Remembered {count} claim(s) in {args.memory_dir}")
-            return 0
+            result = rebuild(memory, store, BlobStore(args.blobs).path)
+            print(f"Remembered {result.remembered} claim(s) in {args.memory_dir}")
+            for line in result.skipped:
+                print(f"Skipped {line}")
+            return 1 if result.skipped else 0
         if args.memory_command == "show":
             record = memory.get(str(args.claim_id))
             if record is None:
@@ -42,15 +44,22 @@ def run_memory_command(args: argparse.Namespace, embedder_factory: Callable[[], 
                 return 1
             print(record.model_dump_json(indent=1))
             return 0
-        if not memory.forget(str(args.claim_id)):
-            print(f"Claim {args.claim_id} is not in memory.")
+        if args.claim_id not in set(store.claim_ids()):
+            print(f"There is no claim {args.claim_id}.")
             return 1
+        # The event comes first, so a rebuild or a later review never brings the claim back,
+        # even when it was never in memory or the delete below fails.
         store.append(
             args.claim_id,
             MemoryForgotten(reason="removed with claimlens memory forget"),
             Actor(kind=ActorKind.HUMAN, name="operator"),
         )
-        print(f"Forgot claim {args.claim_id}; its log is kept.")
+        removed = memory.forget(str(args.claim_id))
+        print(
+            f"Forgot claim {args.claim_id}"
+            + ("" if removed else " (it was not in memory)")
+            + "; its log is kept."
+        )
         return 0
     finally:
         store.close()

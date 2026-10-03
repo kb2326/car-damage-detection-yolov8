@@ -144,5 +144,67 @@ def test_rebuild_from_the_event_logs(
         )
         process_claim(claim, deps)
     memory = ClaimMemory(tmp_path / "memory", FakeEmbedder())
-    assert rebuild(memory, store, deps.blobs.path) == 3
+    assert rebuild(memory, store, deps.blobs.path).remembered == 3
     assert len(memory.all()) == 3
+
+
+def test_forget_leaves_no_old_version_on_disk(memory: ClaimMemory) -> None:
+    gone = record()
+    memory.upsert(gone)
+    memory.upsert(gone.model_copy(update={"review_action": "approve"}))
+    memory.upsert(record())
+    assert memory.forget(gone.claim_id)
+    table = memory._table()
+    assert table is not None
+    for version in table.list_versions():
+        table.checkout(version["version"])
+        ids = table.to_arrow().column("claim_id").to_pylist()
+        assert gone.claim_id not in ids
+
+
+def test_rebuild_skips_a_claim_it_cannot_read_and_carries_on(
+    tmp_path: Path, store: SQLiteEventStore, make_image: Callable[..., Path]
+) -> None:
+    from claimlens.intake import submit_claim
+    from claimlens.workflow import process_claim
+    from tests.fakes import FakeDetector, make_test_deps
+
+    deps = make_test_deps(tmp_path, store, FakeDetector())
+    claims = []
+    for n in range(3):
+        claim = submit_claim(
+            store,
+            deps.blobs,
+            policy_id="P-1001",
+            description="x",
+            photo_paths=[make_image(f"{n}.jpg", color=(10 * n, 50, 50))],
+        )
+        process_claim(claim, deps)
+        claims.append(claim)
+    from claimlens.events.projection import fold
+
+    photo = next(iter(fold(store.load(claims[0])).photos.values()))
+    deps.blobs.path(photo.blob_name).unlink()
+    memory = ClaimMemory(tmp_path / "memory", FakeEmbedder())
+    result = rebuild(memory, store, deps.blobs.path)
+    assert result.remembered == 2
+    assert [s.split(":")[0] for s in result.skipped] == [str(claims[0])]
+
+
+def test_rebuild_skips_forgotten_claims(
+    tmp_path: Path, store: SQLiteEventStore, make_image: Callable[..., Path]
+) -> None:
+    from claimlens.events.envelope import Actor, ActorKind
+    from claimlens.events.payloads import MemoryForgotten
+    from claimlens.intake import submit_claim
+    from claimlens.workflow import process_claim
+    from tests.fakes import FakeDetector, make_test_deps
+
+    deps = make_test_deps(tmp_path, store, FakeDetector())
+    claim = submit_claim(
+        store, deps.blobs, policy_id="P-1001", description="x", photo_paths=[make_image("a.jpg")]
+    )
+    process_claim(claim, deps)
+    store.append(claim, MemoryForgotten(reason="t"), Actor(kind=ActorKind.HUMAN, name="op"))
+    memory = ClaimMemory(tmp_path / "memory", FakeEmbedder())
+    assert rebuild(memory, store, deps.blobs.path).remembered == 0

@@ -88,3 +88,31 @@ def test_the_repo_skills_parse() -> None:
     for path in (ROOT / "skills").glob("*/SKILL.md"):
         skill = parse_skill(path)
         assert 10 <= len(skill.body.splitlines()) <= 25
+
+
+@pytest.mark.parametrize("approver", ["null", "~", '""  # todo', "''", "Null"])
+def test_yaml_style_empty_approvals_do_not_count(tmp_path: Path, approver: str) -> None:
+    write(
+        tmp_path,
+        "s",
+        f"name: s\ndescription: a\nversion: 1\napproved_by: {approver}\napproved_on: 2026-10-03",
+    )
+    loaded, skipped = load_skills_report(tmp_path)
+    assert loaded == {}
+    assert skipped == ["s: not approved by the owner yet"]
+
+
+def test_a_hash_inside_quotes_is_kept(tmp_path: Path) -> None:
+    path = write(
+        tmp_path,
+        "s",
+        'name: s\ndescription: a\napproved_by: "Owner #1"  # the owner\napproved_on: 2026-10-03',
+    )
+    assert parse_skill(path).approved_by == "Owner #1"
+
+
+def test_skipped_skills_are_logged(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    write(tmp_path, "pending", 'name: pending\ndescription: b\nversion: 1\napproved_by: ""')
+    with caplog.at_level("WARNING", logger="claimlens.skills"):
+        assert load_skills(tmp_path) == {}
+    assert "pending: not approved by the owner yet" in caplog.text

@@ -82,7 +82,8 @@ def test_a_failing_memory_never_changes_the_decision(
     state = fold(store.load(claim))
     assert decision.rule_id == "R9"
     assert state.decision == decision
-    assert any(f.stage == "memory" and "disk full" in f.error for f in state.failures)
+    assert state.failures == []  # recorded as MemoryWriteFailed, which the rules never see
+    assert "disk full" in store.load(claim)[-1].payload["error"]
 
 
 def test_a_review_updates_memory(
@@ -160,3 +161,70 @@ def test_run_with_memory_remembers_the_claim(
         == 0
     )
     assert len(memory.all()) == 1  # without --memory nothing is remembered
+
+
+def test_a_forgotten_claim_is_not_remembered_again_by_a_review(
+    tmp_path: Path, store: SQLiteEventStore, make_image: Callable[..., Path]
+) -> None:
+    from claimlens.events.envelope import Actor, ActorKind
+    from claimlens.events.payloads import MemoryForgotten
+
+    deps, memory = _deps(tmp_path, store)
+    claim = _claim(deps, make_image)
+    process_claim(claim, deps)
+    memory.forget(str(claim))
+    store.append(claim, MemoryForgotten(reason="test"), Actor(kind=ActorKind.HUMAN, name="op"))
+    review = HumanReviewed(reviewer="sam", action=ReviewAction.APPROVE, note="ok")
+    record_review(store, claim, review, memory=memory, photo_path=deps.blobs.path)
+    assert memory.get(str(claim)) is None
+    assert _types(store, claim).count("MemoryWritten") == 1
+
+
+def test_a_failed_memory_write_is_not_a_processing_failure(
+    tmp_path: Path, store: SQLiteEventStore, make_image: Callable[..., Path]
+) -> None:
+    from claimlens.decision import decide
+
+    class Broken(ClaimMemory):
+        def upsert(self, record: object) -> None:
+            raise OSError("disk full")
+
+    deps = replace(
+        make_test_deps(tmp_path, store, FakeDetector()),
+        memory=Broken(tmp_path / "m", FakeEmbedder()),
+    )
+    claim = _claim(deps, make_image)
+    process_claim(claim, deps)
+    state = fold(store.load(claim))
+    assert state.failures == []
+    assert decide(state, deps.decision_config).rule_id == "R9"  # re-deciding gives the same route
+    assert _types(store, claim)[-1] == "MemoryWriteFailed"
+
+
+def test_forget_is_recorded_even_when_the_claim_was_never_remembered(
+    tmp_path: Path,
+    store: SQLiteEventStore,
+    make_image: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from uuid import uuid4
+
+    from claimlens.cli import main
+    from claimlens.memory.index import rebuild
+
+    deps = make_test_deps(tmp_path, store, FakeDetector())  # decided without memory
+    claim = _claim(deps, make_image)
+    process_claim(claim, deps)
+    store.close()
+    monkeypatch.chdir(tmp_path)
+    base = ["--db", str(tmp_path / "events.db"), "--blobs", str(tmp_path / "blobs")]
+    embed = {"embedder_factory": FakeEmbedder}
+    assert main([*base, "memory", "forget", str(claim)], **embed) == 0  # type: ignore[arg-type]
+    assert main([*base, "memory", "forget", str(uuid4())], **embed) == 1  # type: ignore[arg-type]
+    assert "no claim" in capsys.readouterr().out.lower()
+    reopened = SQLiteEventStore(tmp_path / "events.db")
+    assert _types(reopened, claim)[-1] == "MemoryForgotten"
+    memory = ClaimMemory(tmp_path / "var" / "memory", FakeEmbedder())
+    assert rebuild(memory, reopened, deps.blobs.path).remembered == 0
+    reopened.close()

@@ -56,6 +56,10 @@ def load_personas(path: Path) -> list[Persona]:
         unknown = set(persona.facts) - set(SCORED_FACTS)
         if unknown:
             raise ValueError(f"{persona.persona_id}: unknown facts {sorted(unknown)}")
+        if persona.style == "story-changer" and persona.wrong_days_ago is None:
+            raise ValueError(f"{persona.persona_id}: a story-changer needs wrong_days_ago")
+        if persona.style == "photo-trouble" and not persona.photo_trouble:
+            raise ValueError(f"{persona.persona_id}: a photo-trouble persona needs photo_trouble")
     return personas
 
 
