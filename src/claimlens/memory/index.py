@@ -40,7 +40,7 @@ def _claim_id(value: str) -> str:
         raise ValueError(f"not a claim id: {value!r}") from None
 
 
-def _hamming(a: str, b: str) -> int:
+def hamming(a: str, b: str) -> int:
     return (int(a, 16) ^ int(b, 16)).bit_count()
 
 
@@ -119,7 +119,7 @@ class ClaimMemory:
         copies = []
         for other in others:
             distances = [
-                _hamming(mine, theirs)
+                hamming(mine, theirs)
                 for mine in record.photo_phashes
                 for theirs in other.photo_phashes
             ]

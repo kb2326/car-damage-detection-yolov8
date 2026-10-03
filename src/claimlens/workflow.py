@@ -158,7 +158,9 @@ def _integrity_stage(state: ClaimState, deps: PipelineDeps) -> None:
             state,
             deps,
             "integrity",
-            lambda: IntegrityChecked(signals=check_integrity(state, deps.store)),
+            lambda: IntegrityChecked(
+                signals=check_integrity(state, deps.store, deps.memory, deps.blobs.path)
+            ),
         )
 
 
