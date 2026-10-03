@@ -1,34 +1,50 @@
 # ClaimLens
 
-**AI-assisted vehicle damage claims triage.** Custom-trained computer-vision models act as tools
-for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
-of every consequential decision.
+[![CI](https://github.com/kb2326/claimlens/actions/workflows/ci.yml/badge.svg)](https://github.com/kb2326/claimlens/actions/workflows/ci.yml)
+[![Showcase](https://img.shields.io/badge/showcase-Hugging%20Face-yellow)](https://huggingface.co/spaces/kb2606/claimlens)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+![Coverage 96%](https://img.shields.io/badge/coverage-96%25-brightgreen)
 
-> Status: **complete (M0–M8)**: foundations, data engine, our own vision models, MCP tools, the
-> LLM triage and intake agents with evaluations, memory and skills, a web app, a red-team suite and
-> a [system card](docs/system-card.md), and a read-only public showcase (`claimlens serve
-> --showcase`, deployable to Hugging Face Spaces). This repository started as a STAT 5350 course
-> project (a YOLOv8 car-damage detector); see [`legacy/README.md`](legacy/README.md).
+**AI-assisted vehicle damage claims triage.** Our own computer-vision models measure the damage, an
+LLM agent reasons over the evidence and the policy wording, and fixed rules decide the route. A
+person approves every payout, and only a person can deny a claim.
+
+**See it:** [the live read-only showcase](https://huggingface.co/spaces/kb2606/claimlens) (five
+sample claims and a recorded chat) · **Read:** [system card](docs/system-card.md) ·
+[model card](docs/model-card.md) · [design](docs/specs/2026-10-01-claimlens-design.md)
+
+> **Status: complete (M0–M8).** Data engine, our own vision models, MCP tools, the LLM triage and
+> intake agents with evaluations, memory and skills, a web app, a red-team suite, a system card,
+> and a public showcase. It started as a STAT 5350 course project (a YOLOv8 car-damage detector);
+> see [`legacy/README.md`](legacy/README.md) for the original and the audit that led to the rebuild.
+
+![A claim in the showcase: the route and rule, the stage timeline, the damage boxes on the photo, the fraud signal and the agent's reasoning](docs/images/showcase-claim.jpg)
+
+*A showcase claim: a re-saved copy of another claim's photo, caught as a near-copy (rule R1),
+explained by the agent and denied by a person. Photo: "2010-03-08 Shattered side mirror on BMW" by
+Ildar Sagdejev (Specious), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0),
+via Wikimedia Commons.*
 
 ## Where it stands
 
 | Area | What is built | Result |
 |---|---|---|
-| Claim pipeline | Event-sourced, resumable workflow; rules R1–R9; no route can deny | 820+ tests, 96% coverage |
+| Claim pipeline | Event-sourced, resumable workflow; rules R1–R9; no route can deny | 850+ tests, 96% coverage |
 | Data | `damage-v1` (4,000 CarDD images) and `parts-v1` (3,833 images), versioned with DVC | 0 contract errors; 33 near-duplicate images moved so no group spans two splits |
 | Damage model | YOLO11s-seg, trained on a free Kaggle GPU | Test mask mAP50 **0.733** (course model: validation mAP50 0.137) |
 | Part model | YOLO11n-seg, 22 part classes | Test mask mAP50 **0.746** |
 | Fusion | Which part each damage is on, and its share of that part | 88% of golden findings get a part |
 | Calibration | Temperature scaling; the confidence threshold comes from evidence | T = 0.80; threshold 0.65 |
-| Golden set (97 claims) | Full system at threshold 0.65 | Route accuracy **0.78**, escalation recall **1.00**, 9 of 30 correct fast-tracks |
+| Golden set v1 (97 claims) | Full system with the rule-based agent, threshold 0.65 | Route accuracy **0.78**, escalation recall **1.00**, 9 of 30 correct fast-tracks |
 | Tools (MCP) | 4 servers with per-agent scopes; payments need a human-signed, single-use token | Usable from Claude Code |
 | Triage agent | LangGraph agent on the gateway and read-only MCP tools; cites clauses, checked in code | Escalation recall 1.00, $0.010 per claim, 0 failures |
-| Agent evaluation | Golden v2 (150 claims, 53 story cases), code-scored quality, an LLM judge, a CI gate on a committed scorecard | Stories caught **43 of 43** with the right clause; harmless stories fast-tracked 3 of 10 (too cautious) |
+| Agent evaluation | Golden v2 (150 claims, 53 story cases), code-scored quality, an LLM judge, a CI gate on a committed scorecard | Stories caught **43 of 43** with the right clause; escalation recall **1.00** |
 | Intake agent | A chat that collects 10 facts and 3 photos, coaches retakes, pauses and resumes (LangGraph checkpoints) | Simulated customers: pass^4 **0.80** (target 0.70) |
 | Memory and skills | Claim memory written by the workflow (near-copy photos, same policy, similar damage); 3 approved adjuster procedures | Harmless stories fast-tracked 5 of 10 (was 3); recall still 1.00 |
 | Human review | Review queue; only a person can deny; payments wait for a person on review routes | `claimlens queue`, `claimlens review-claim` |
 | LLM gateway | Tiers, retries, fallback, cache; caps of $0.10 per claim and $1 per day | Two live test calls cost $0.0006 in total |
-| Web prototype | `claimlens serve`: chat, claims list, claim page, review (local only) | Live claim filed, decided and reviewed; log verified |
+| Web app | `claimlens serve`: chat, claims list, claim page, review (local only) | Live claim filed, decided and reviewed; log verified |
+| Showcase | Read-only static export on Hugging Face, deployed by GitHub Actions | [Live](https://huggingface.co/spaces/kb2606/claimlens); no keys, weights or server |
 | Red team | 34 attacks mapped to the OWASP agentic top 10, run with a model that obeys the attacker; live injections on the real agent | **33 of 33 run held** (+ dependency audit in CI); live: 15 of 15 to a person, agent fooled 0 times |
 | Fraud | Exact and near-copy photo reuse across claims (memory) → fraud review | Re-saves and 2% crops caught |
 | Policy search | 56 fictional clauses, LanceDB hybrid search, citation check | recall@5 **1.00** on 10 questions (a small corpus, so a generous bar) |
@@ -59,18 +75,18 @@ human with the evidence already assembled.**
 ## How a claim moves
 
 Fixed code handles every predictable step. The LLM is used only where judgment is needed, and its
-advice passes through deterministic rules before any routing decision. The diagram shows the target
-design. The LLM triage agent runs with `--agent llm` (the default stays the rule-based stub), and the intake
-agent, PII blur, EXIF and synthetic-image checks are planned for M6 and M7.
+advice passes through deterministic rules before any routing decision. On the command line the LLM
+triage agent runs with `--agent llm` (the default is the free rule-based stub); the web app uses it
+by default.
 
 ```mermaid
 flowchart LR
-    C([Claimant]) -->|story + photos| IA[Intake agent<br/>multi-turn FNOL]
+    C([Claimant]) -->|chat + photos| IA[Intake agent<br/>multi-turn chat]
 
     subgraph WF [Deterministic workflow]
         direction LR
-        Q[Intake gate<br/>quality, PII blur] --> P[Perception<br/>damage + part masks]
-        P --> I[Integrity<br/>reuse, EXIF, synthetic]
+        Q[Intake gate<br/>photo quality] --> P[Perception<br/>damage + part masks]
+        P --> I[Integrity<br/>exact + near-copy reuse]
         I --> PR[Pricing<br/>rate card]
     end
 
@@ -138,7 +154,7 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     subgraph UX [Interfaces]
-        CLI[CLI] --- API[FastAPI] --- UI[Gradio demo]
+        CLI[CLI] --- API[FastAPI web app] --- UI[Static showcase]
     end
     subgraph ORCH [Orchestration]
         WFL[Workflow] --- AG[Agents: intake, triage] --- RULES[Decision policy]
@@ -151,30 +167,6 @@ flowchart TB
     end
     UX --> ORCH --> CAP --> PLAT
 ```
-
-## Roadmap at a glance
-
-```mermaid
-gantt
-    title ClaimLens milestones (about 10 hours a week)
-    dateFormat YYYY-MM-DD
-    axisFormat %b %d
-    section Platform
-    M0 Foundations          :done,   m0, 2026-10-01, 2026-10-07
-    M1 Walking skeleton     :done,   m1, 2026-10-08, 2026-10-18
-    section Data and vision
-    M2 Data engine          :done,   m2, 2026-10-19, 2026-11-01
-    M3 Vision models        :done,   m3, 2026-11-02, 2026-11-15
-    section Agents
-    M4 Tools and MCP        :done,   m4, 2026-11-16, 2026-11-26
-    M5 Triage agent         :active, m5, 2026-11-27, 2026-12-10
-    M6 Intake and memory    :m6, 2026-12-11, 2026-12-24
-    section Trust and ship
-    M7 Trust and governance :m7, 2026-12-25, 2027-01-04
-    M8 Ship                 :m8, 2027-01-05, 2027-01-15
-```
-
-The chart shows the planned dates. M0 to M4 were finished ahead of them.
 
 ## Repository layout
 
@@ -253,7 +245,8 @@ uv run claimlens --agent llm --detector fused eval-triage --golden evals/golden/
 
 # Red team: 34 attacks with a model that obeys the attacker (free), then live injections (~$0.20)
 uv run claimlens eval-redteam --report evals/reports/redteam.md
-uv run claimlens --agent llm eval-triage --golden evals/redteam/injections.jsonl   --report evals/reports/redteam-live.md
+uv run claimlens --agent llm eval-triage --golden evals/redteam/injections.jsonl \
+  --report evals/reports/redteam-live.md
 ```
 
 Set `CLAIMLENS_TRACING=1` (after `uv sync --group tracing`) to send each agent run to a local
@@ -358,9 +351,15 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 | M7 ✅ | Trust: red-team suite (OWASP agentic top 10), near-copy photos as a fraud rule, system card |
 | M8b ✅ | Ship: read-only showcase (Docker, Hugging Face Spaces), write-up |
 
-Full design: [`docs/specs/2026-10-01-claimlens-design.md`](docs/specs/2026-10-01-claimlens-design.md).
+Each milestone followed the same loop: a design spec, a task-by-task plan, test-first
+implementation, an independent review of the whole branch, a pull request with green CI, and a
+retrospective ([`docs/retros/`](docs/retros/)). Releases are tagged (`v1.0.0` marks the finished
+project). Full design: [`docs/specs/2026-10-01-claimlens-design.md`](docs/specs/2026-10-01-claimlens-design.md).
 
 ## License
 
-Code: MIT (see [`LICENSE`](LICENSE)). Datasets keep their own licenses — see
-[`data/README.md`](data/README.md).
+Code: MIT (see [`LICENSE`](LICENSE)). Datasets keep their own licences (see
+[`data/README.md`](data/README.md)); the damage model's training data (CarDD) allows
+non-commercial research only, so its weights are not published. Showcase photos are from
+Wikimedia Commons under CC BY / CC BY-SA, credited in [`showcase/CREDITS.md`](showcase/CREDITS.md).
+Policies, insurers and claims are fictional.

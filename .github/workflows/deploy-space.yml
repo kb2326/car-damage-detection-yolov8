@@ -11,9 +11,16 @@ on:
 permissions:
   contents: read
 
+concurrency:  # one deploy at a time; a newer run waits rather than overlapping
+  group: deploy-space
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:  # deployment history and the live URL on GitHub
+      name: huggingface-space
+      url: https://huggingface.co/spaces/${{ vars.HF_SPACE }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -24,3 +31,15 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ vars.HF_SPACE }}
         run: uv run --with "huggingface_hub==0.35.3" python scripts/deploy_space.py "$HF_SPACE"
+      - name: Smoke check the live site
+        env:
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          host="$(echo "$HF_SPACE" | tr '/' '-').static.hf.space"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS "https://$host/claims.html" | grep -q 'claim-'; then
+              echo "live: https://$host"; exit 0
+            fi
+            sleep 20
+          done
+          echo "the showcase did not come up at https://$host" >&2; exit 1
