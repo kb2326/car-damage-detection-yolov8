@@ -200,7 +200,7 @@ public demo. Order now: **M8a → trimmed M7 → M8b**. Nothing goes public befo
 - [x] Claims list with filters; claim page with stage timeline, damage boxes, evidence, agent reasoning, similar claims, verified audit log
 - [x] Review form: approve, ask for information, change the route, deny (people only)
 - [x] `claimlens serve` (local only), `--seed`, `--stub-agent`, `--no-memory`; a Playwright browser test
-- [ ] A full live run and a README screenshot (waiting for the daily LLM cap to reset)
+- [x] A full live run (chat → decision → review, `Chain OK`) and a README screenshot
 
 ## M7 · Trust (trimmed, next)
 

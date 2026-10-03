@@ -270,6 +270,7 @@ A local web app over the whole flow (ADR 0018). It runs on your machine only (`1
 uv sync --group web --group agent --group knowledge --group vision
 uv run claimlens serve --seed            # http://127.0.0.1:8000
 uv run claimlens serve --stub-agent --no-memory --seed   # free: no LLM calls for triage
+uv run claimlens serve --llm-daily-cap 5    # owner override of the daily LLM cap
 ```
 
 | Screen | What you do |
@@ -278,6 +279,12 @@ uv run claimlens serve --stub-agent --no-memory --seed   # free: no LLM calls fo
 | **Claims** (`/claims`) | Every claim with its status, route and rule; filters for "needs review" and "fraud review" |
 | **Claim** (`/claims/<id>`) | Watch the stages finish, see the damage boxes on the photos, the evidence, the agent's reasoning and cited clauses, similar claims, the route and rule, and the verified audit log |
 | **Review** (on the claim page) | Approve, ask for information, change the route or deny (only a person can deny) |
+
+![The claim page of a live chat claim: stage timeline, damage boxes, evidence, the triage agent's reasoning, similar claims and the review form](docs/images/claim-page.png)
+
+*A live claim filed through the chat (2026-10-03). The photos reused one from an earlier test
+claim, so rule R1 sent it to fraud review and the agent explained why. Photos: Roboflow Universe
+"car-seg" by Gianmarco Russo, CC BY 4.0.*
 
 The API is documented at `http://127.0.0.1:8000/docs`. `--seed` files three sample claims; the
 third reuses the first photo, so rule R1 sends it to fraud review. The chat uses Claude Haiku

@@ -52,11 +52,19 @@ flow working before more trust work, so the order changed:
 
 ## Consequences
 
-- 793 tests including 53 for the web layer, and one Playwright browser test that files a claim by
+- 54 tests for the web layer, and one Playwright browser test that files a claim by
   chat, follows it and approves it (local only; CI skips it).
-- **Live check (2026-10-03):** a chat claim went through the real app. Today's $1 daily LLM cap had
-  already been used by earlier evaluation runs, so the chat handed the claim over after the first
-  photo and the triage agent's budget refusal sent it to a person (R2), with the reason on the
-  claim page. The safeguards worked as designed; a full live run waits for the cap's reset.
+- **Live check (2026-10-03), Haiku chat and Sonnet agent:**
+  - The first attempt hit the $1 daily LLM cap, already used by the day's M6 evaluations. The chat
+    handed the claim over after one photo and the agent's budget refusal sent it to a person (R2),
+    with the reason on the claim page: the safeguards worked as designed.
+  - With the owner's approval, `serve --llm-daily-cap` raised the cap for the run. A full chat then
+    collected every fact and three CC BY 4.0 `car-seg` photos in 12 turns; the claim was decided,
+    written to memory and reviewed in the browser, and `claimlens verify` reported `Chain OK`
+    (23 events). The agent cost $0.018.
+  - Rule R1 sent it to fraud review because the aborted first attempt had used the same photo, and
+    the agent's reasons named the reuse and the story's mismatch with the damage.
+  - On these undamaged cars the damage model still reported low-confidence findings (0.08 to
+    0.39), which inflate the cost estimate; rule R6 (0.65) keeps such claims away from a fast-track.
 - **Limits:** no sign-in or roles; one-second polling instead of push; one worker per area, so two
   chats wait for each other; no Docker yet (M8b).
