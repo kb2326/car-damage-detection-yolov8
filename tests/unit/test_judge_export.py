@@ -78,3 +78,11 @@ def test_labels_file_is_parsed_and_checked(tmp_path: Path) -> None:
     path.write_text('{"labeller": "x", "labels": {"a": {"label": "maybe"}}}', encoding="utf-8")
     with pytest.raises(ValueError, match="pass or fail"):
         load_labels(path)
+
+
+def test_each_export_keeps_labels_in_its_own_browser_storage() -> None:
+    other = ITEM.model_copy(update={"case_id": "n009"})
+    first, second = render_label_page([ITEM]), render_label_page([other])
+    key = 'const KEY = "claimlens-labels-'
+    assert first.split(key)[1][:12] != second.split(key)[1][:12]
+    assert render_label_page([ITEM]).split(key)[1][:12] == first.split(key)[1][:12]

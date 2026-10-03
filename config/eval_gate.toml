@@ -1,9 +1,12 @@
-# The evaluation gate (spec docs/specs/2026-10-02-m5b-agent-evaluation-design.md).
+# The evaluation gate (spec docs/specs/2026-10-02-m5b-agent-evaluation-design.md, ADR 0014).
+
 # The LLM judge counts only when it agrees with the owner's labels at least this well.
 judge_min_agreement = 0.80
 judge_min_kappa = 0.60
 
 # The CI gate on the committed scorecard (claimlens eval-gate).
+golden = "evals/golden/v2/claims.jsonl" # the scorecard must come from this golden file
+min_cases = 150                         # and from a full run, not a --cases subset
 must_equal_one = ["escalation_recall", "citation_validity"]
 max_cost_increase = 0.25 # mean cost per claim may rise at most 25% above the baseline
 

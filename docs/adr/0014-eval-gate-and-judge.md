@@ -67,6 +67,13 @@ CI has no API key and no model weights, so it cannot re-run the evaluation itsel
   will hold escalation recall and the catch rate while it does.
 - **The gate proved itself:** changing one character of the triage prompt made `eval-gate` fail
   as stale; restoring it passed.
-- **Limits:** the gate trusts the committed scorecard, so a person could commit a scorecard that
-  was not produced by a real run. Pull-request review is the control for that. The cost metric is
-  list price, not actual spend; actual spend is in each report.
+- **The scorecard must be complete:** it must be for golden v2 and cover all 150 cases
+  (`golden`, `min_cases` in `config/eval_gate.toml`). `eval-triage --cases` cannot write one, and a
+  metric the baseline has but the new run lacks fails the gate.
+- **Limits:**
+  - The gate trusts the committed scorecard, so a person could commit one that no real run
+    produced. Pull-request review is the control for that.
+  - Source code is not fingerprinted (only config, prompts, wordings and the golden file). A change
+    to the rules code or the agent code passes the gate unless it changes those files; reviewers
+    must ask for a re-run.
+  - The cost metric is list price, not actual spend; actual spend is in each report.

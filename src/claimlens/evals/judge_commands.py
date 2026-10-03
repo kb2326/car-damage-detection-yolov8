@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -19,6 +20,7 @@ from claimlens.evals.judge_export import (
 from claimlens.evals.scorecard import Scorecard
 from claimlens.llm.gateway import Gateway
 from claimlens.llm.prompts import load_prompt
+from claimlens.llm.types import LLMError
 
 # per_day_usd -> gateway; the default builds the real gateway (needs ANTHROPIC_API_KEY).
 JudgeGatewayFactory = Callable[[float | None], Gateway]
@@ -55,6 +57,14 @@ def _sample_path(judgements: Path) -> Path:
 
 
 def run_judge_command(args: argparse.Namespace, gateway_factory: JudgeGatewayFactory) -> int:
+    try:
+        return _run(args, gateway_factory)
+    except (ValueError, KeyError, FileNotFoundError, LLMError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
+def _run(args: argparse.Namespace, gateway_factory: JudgeGatewayFactory) -> int:
     if args.judge_command == "run":
         name, _, version = args.prompt.partition("/")
         prompt = load_prompt(Path("prompts"), name, version)

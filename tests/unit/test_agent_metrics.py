@@ -71,3 +71,11 @@ def test_rates_are_none_when_there_is_nothing_to_measure() -> None:
     q = agent_quality([], [], {}, WORDINGS.get)
     assert q.citation_validity is None
     assert q.narrative_catch_rate is None
+
+
+def test_an_unknown_clause_on_an_unknown_policy_is_not_valid() -> None:
+    case = _case("a", "exclusion_commercial", Route.ADJUSTER_REVIEW, ("STD-8.5",))
+    case = case.model_copy(update={"policy_id": "P-0000"})
+    result = _result(case, Route.ADJUSTER_REVIEW, ("XYZ-1.1",))
+    q = agent_quality([case], [result], {}, WORDINGS.get)
+    assert q.citation_validity == 0.0

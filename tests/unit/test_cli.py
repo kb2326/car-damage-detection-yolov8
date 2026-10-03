@@ -304,3 +304,29 @@ def test_review_claim_and_queue(tmp_path: Path, capsys: pytest.CaptureFixture[st
     assert main([*db, "review-claim", str(claim), "--approve", "--reviewer", "sam"]) == 0
     assert main([*db, "queue"]) == 0
     assert "No claims are waiting" in capsys.readouterr().out
+
+
+def test_a_partial_run_cannot_write_a_gate_scorecard(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = tmp_path / "cases.txt"
+    cases.write_text("g001\n", encoding="utf-8")
+    code = main(
+        [
+            "--config",
+            str(CONFIG_DIR),
+            "eval-triage",
+            "--golden",
+            str(CONFIG_DIR.parent / "evals" / "golden" / "v1" / "claims.jsonl"),
+            "--report",
+            str(tmp_path / "r.md"),
+            "--cases",
+            str(cases),
+            "--scorecard",
+            str(tmp_path / "s.json"),
+        ],
+        detector_factory=lambda *_: FakeDetector(),
+    )
+    assert code == 2
+    assert "--scorecard needs the full golden set" in capsys.readouterr().err
+    assert not (tmp_path / "s.json").exists()

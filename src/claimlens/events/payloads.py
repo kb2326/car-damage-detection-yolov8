@@ -118,6 +118,8 @@ class HumanReviewed(Payload):
 
     @model_validator(mode="after")
     def _complete(self) -> Self:
+        if not self.reviewer.strip():
+            raise ValueError("a review needs the reviewer's name")
         if self.action is ReviewAction.OVERRIDE and self.final_route is None:
             raise ValueError("an override needs a final_route")
         if self.action is not ReviewAction.OVERRIDE and self.final_route is not None:

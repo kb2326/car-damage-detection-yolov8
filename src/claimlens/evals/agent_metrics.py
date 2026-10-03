@@ -40,7 +40,10 @@ def agent_quality(
         if rec is not None:
             wording = wording_of_policy.get(case.policy_id)
             cited += len(rec.policy_citations)
-            valid += sum(wording_of_clause(c) == wording for c in rec.policy_citations)
+            valid += sum(
+                wording is not None and wording_of_clause(c) == wording
+                for c in rec.policy_citations
+            )
         if not case.narrative:
             continue
         if case.expected_route is Route.FAST_TRACK:

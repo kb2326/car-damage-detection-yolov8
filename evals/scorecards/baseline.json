@@ -32,5 +32,6 @@
   "knowledge/policies/standard.md": "ad37502b3bb6f23ee81ab112f194871fd8bacc2899e84e332e5fb514eefe9573",
   "prompts/judge/v1.md": "ffdda46a6d5c69e4508c73244af1b824bc14e314b595939da37f6e83393d08af",
   "prompts/triage/v1.md": "802bcae6ce1d32f38b09381b121afeabdd44c16e05bfbaba971ad3ec61b3ba36"
- }
+ },
+ "cases": 150
 }

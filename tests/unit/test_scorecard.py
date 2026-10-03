@@ -141,6 +141,7 @@ def _write_card(root: Path, name: str, **metrics: float | None) -> Path:
         versions={},
         metrics={**METRICS, **metrics},
         fingerprints=fingerprints(root, golden),
+        cases=150,
     )
     path = root / "evals" / "scorecards" / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -229,3 +230,26 @@ def test_scorecard_cost_uses_list_price_when_given() -> None:
     triage = compute_triage_metrics([(Route.FAST_TRACK, Route.FAST_TRACK)])
     summary = AgentSummary(1, 2.0, 1.0, 0.001, 0.001, 0.001, {}, {})
     assert scorecard_metrics(triage, summary, None, list_cost_mean=0.006)["cost_mean_usd"] == 0.006
+
+
+def test_a_metric_the_baseline_has_but_the_run_lacks_fails() -> None:
+    problems = check_gate(_card(judge_pass_rate=None), _card(), PRINTS, CONFIG)
+    assert problems == ["regression: judge_pass_rate was not measured (baseline 0.85)"]
+
+
+def test_a_missing_cost_fails() -> None:
+    assert check_gate(_card(cost_mean_usd=None), _card(), PRINTS, CONFIG) == [
+        "cost: mean cost per claim was not measured (baseline $0.040)"
+    ]
+
+
+def test_the_gate_requires_the_full_golden_set() -> None:
+    config = CONFIG.model_copy(update={"golden": "evals/golden/v2/claims.jsonl", "min_cases": 150})
+    v1 = _card().model_copy(update={"golden": "evals/golden/v1/claims.jsonl", "cases": 150})
+    assert check_gate(v1, _card(), PRINTS, config) == [
+        "scope: the scorecard is for evals/golden/v1/claims.jsonl, not evals/golden/v2/claims.jsonl"
+    ]
+    partial = _card().model_copy(update={"golden": "evals/golden/v2/claims.jsonl", "cases": 20})
+    assert check_gate(partial, _card(), PRINTS, config) == [
+        "scope: the scorecard covers 20 cases, the gate needs 150"
+    ]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import random
@@ -106,7 +107,7 @@ color:var(--ink);flex:1;min-width:180px}
 adjuster could act on it. Bad: anything else. Judge the reasoning, not the route.</p>
 __CARDS__
 </main><script>
-const KEY = "claimlens-labels-v1";
+const KEY = "claimlens-labels-__KEY__";
 let state = {};
 try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { state = {}; }
 const cards = [...document.querySelectorAll(".card")];
@@ -176,4 +177,6 @@ def _card(n: int, item: JudgeItem) -> str:
 def render_label_page(items: Sequence[JudgeItem]) -> str:
     """A self-contained page: no network, no judge output, every text escaped."""
     cards = "\n".join(_card(n, item) for n, item in enumerate(items, start=1))
-    return _PAGE.replace("__CARDS__", cards)
+    # Labels are stored per export, so a new export never shows old labels on new items.
+    key = hashlib.sha256("".join(i.model_dump_json() for i in items).encode()).hexdigest()[:12]
+    return _PAGE.replace("__CARDS__", cards).replace("__KEY__", key)

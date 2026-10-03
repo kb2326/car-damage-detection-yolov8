@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from claimlens.domain import AgentRecommendation, Frozen
 from claimlens.llm.gateway import Gateway
 from claimlens.llm.prompts import Prompt
-from claimlens.llm.types import LLMRequest, Message
+from claimlens.llm.types import InvalidModelOutput, LLMRequest, Message
 
 
 class JudgeAnswer(BaseModel):
@@ -64,7 +64,8 @@ def judge_item(gateway: Gateway, prompt: Prompt, item: JudgeItem) -> Judgement:
         )
     )
     answer = response.parsed
-    assert isinstance(answer, JudgeAnswer)
+    if not isinstance(answer, JudgeAnswer):
+        raise InvalidModelOutput("the judge returned no structured answer")
     ok = answer.grounded and answer.citation_relevant and answer.actionable
     return Judgement(
         case_id=item.case_id,

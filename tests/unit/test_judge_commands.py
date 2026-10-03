@@ -111,7 +111,9 @@ def test_export_then_agreement(tmp_path: Path, capsys: pytest.CaptureFixture[str
     assert "kappa 1.00" in out
 
 
-def test_agreement_refuses_labels_for_other_items(tmp_path: Path) -> None:
+def test_agreement_refuses_labels_for_other_items(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     run = _run_dir(tmp_path, 4)
     judgements = tmp_path / "judgements.jsonl"
     main(
@@ -132,8 +134,9 @@ def test_agreement_refuses_labels_for_other_items(tmp_path: Path) -> None:
     )
     labels = tmp_path / "judge-labels.json"
     labels.write_text(json.dumps({"labeller": "o", "labels": {"zzz": {"label": "pass"}}}))
-    with pytest.raises(ValueError, match="missing labels"):
-        main(["judge", "agreement", "--judgements", str(judgements), "--labels", str(labels)])
+    code = main(["judge", "agreement", "--judgements", str(judgements), "--labels", str(labels)])
+    assert code == 2
+    assert "missing labels" in capsys.readouterr().err
 
 
 def test_agreement_below_the_bar_exits_1(

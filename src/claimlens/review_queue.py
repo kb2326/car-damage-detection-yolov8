@@ -11,18 +11,32 @@ from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import SQLiteEventStore
 
 _REVIEW_ROUTES = (Route.ADJUSTER_REVIEW, Route.FRAUD_REVIEW)
-_CLOSING = (ReviewAction.APPROVE, ReviewAction.OVERRIDE, ReviewAction.DENY)
+_CLOSING = (ReviewAction.APPROVE, ReviewAction.DENY)
+
+
+def effective_route(state: ClaimState) -> Route | None:
+    """The route that counts now: a reviewer's override wins over the rules' decision."""
+    if state.decision is None:
+        return None
+    review = state.review
+    if review is not None and review.action is ReviewAction.OVERRIDE:
+        return review.final_route
+    return state.decision.route
 
 
 def pending_reviews(store: SQLiteEventStore, route: Route | None = None) -> list[ClaimState]:
-    """Decided claims on a review route with no closing review, oldest first."""
+    """Claims whose effective route needs a person and that no one has closed, oldest first.
+
+    An override into a review route keeps the claim in the queue; approve or deny closes it.
+    """
     pending: list[tuple[str, ClaimState]] = []
     for claim_id in store.claim_ids():
         events = store.load(claim_id)
         state = fold(events)
-        if state.decision is None or state.decision.route not in _REVIEW_ROUTES:
+        current = effective_route(state)
+        if current not in _REVIEW_ROUTES:
             continue
-        if route is not None and state.decision.route is not route:
+        if route is not None and current is not route:
             continue
         if state.review is None or state.review.action not in _CLOSING:
             pending.append((events[0].occurred_at.isoformat(), state))
@@ -38,15 +52,20 @@ def record_review(store: SQLiteEventStore, claim_id: UUID, review: HumanReviewed
 
 def payable(state: ClaimState) -> str | None:
     """None when a payment may be approved; otherwise the reason it may not."""
-    if state.decision is None:
+    current = effective_route(state)
+    if current is None:
         return "the claim has not been decided"
-    if state.decision.route is Route.FRAUD_REVIEW:
+    # Fraud on either route blocks payment here: the rules' fraud route cannot be overridden
+    # into a payout, and a reviewer's escalation to fraud stops one.
+    if Route.FRAUD_REVIEW in (current, state.decision.route if state.decision else None):
         return "fraud-routed claims are never paid here"
     review = state.review
     if review is not None and review.action is ReviewAction.DENY:
         return "denied by a reviewer"
-    if state.decision.route is Route.FAST_TRACK:
+    if review is not None and review.action is ReviewAction.REQUEST_INFO:
+        return "waiting for the information a reviewer asked for"
+    if current is Route.FAST_TRACK:
         return None
-    if review is not None and review.action in (ReviewAction.APPROVE, ReviewAction.OVERRIDE):
+    if review is not None and review.action is ReviewAction.APPROVE:
         return None
     return "waiting for human review"

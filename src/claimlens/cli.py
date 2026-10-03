@@ -681,6 +681,9 @@ def _agent_quality(
 def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
     cases = load_golden(args.golden)
     if args.cases is not None:
+        if args.scorecard is not None:
+            print("error: --scorecard needs the full golden set; drop --cases", file=sys.stderr)
+            return 2
         cases = _select_cases(cases, args.cases)
     detector = _make_detector(args, factory)
     agent_versions: set[str] = set()
@@ -735,6 +738,7 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
                 list_cost_mean=mean_list_cost(results, load_llm_config(args.config / "llm.toml")),
             ),
             fingerprints=fingerprints(Path.cwd(), args.golden),
+            cases=len(results),
         )
         args.scorecard.parent.mkdir(parents=True, exist_ok=True)
         args.scorecard.write_text(card.model_dump_json(indent=1) + "\n", encoding="utf-8")

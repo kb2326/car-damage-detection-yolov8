@@ -50,12 +50,15 @@ class Scorecard(Frozen):
     versions: dict[str, str]
     metrics: dict[str, float | None]
     fingerprints: dict[str, str]
+    cases: int = 0  # how many golden cases the evaluation ran
 
 
 class GateConfig(Frozen):
     max_drop: dict[str, float]
     must_equal_one: tuple[str, ...]
     max_cost_increase: float
+    golden: str | None = None  # the golden file the scorecard must be for
+    min_cases: int = 0  # a partial run (eval-triage --cases) cannot pass
 
 
 def load_gate_config(path: Path) -> GateConfig:
@@ -64,6 +67,8 @@ def load_gate_config(path: Path) -> GateConfig:
         max_drop=data["max_drop"],
         must_equal_one=tuple(data["must_equal_one"]),
         max_cost_increase=data["max_cost_increase"],
+        golden=data.get("golden"),
+        min_cases=data.get("min_cases", 0),
     )
 
 
@@ -71,6 +76,12 @@ def check_gate(
     current: Scorecard, baseline: Scorecard, on_disk: Mapping[str, str], config: GateConfig
 ) -> list[str]:
     problems: list[str] = []
+    if config.golden is not None and current.golden != config.golden:
+        problems.append(f"scope: the scorecard is for {current.golden}, not {config.golden}")
+    elif current.cases < config.min_cases:
+        problems.append(
+            f"scope: the scorecard covers {current.cases} cases, the gate needs {config.min_cases}"
+        )
     for path, digest in current.fingerprints.items():
         if path not in on_disk:
             problems.append(f"stale: {path} is missing")
@@ -89,7 +100,10 @@ def check_gate(
             problems.append(f"safety: {name} is {value:.2f}, must be 1.00")
     for name, margin in config.max_drop.items():
         now, before = current.metrics.get(name), baseline.metrics.get(name)
-        if now is None or before is None:
+        if before is None:
+            continue
+        if now is None:
+            problems.append(f"regression: {name} was not measured (baseline {before:.2f})")
             continue
         if now < before - margin - 1e-9:
             problems.append(
@@ -100,7 +114,11 @@ def check_gate(
         current.metrics.get("cost_mean_usd"),
         baseline.metrics.get("cost_mean_usd"),
     )
-    if now_cost and before_cost and now_cost > before_cost * (1 + config.max_cost_increase) + 1e-9:
+    if before_cost is not None and now_cost is None:
+        problems.append(f"cost: mean cost per claim was not measured (baseline ${before_cost:.3f})")
+    elif (
+        now_cost and before_cost and now_cost > before_cost * (1 + config.max_cost_increase) + 1e-9
+    ):
         problems.append(
             f"cost: mean cost per claim rose from ${before_cost:.3f} to ${now_cost:.3f} "
             f"(allowed +{config.max_cost_increase:.0%})"
