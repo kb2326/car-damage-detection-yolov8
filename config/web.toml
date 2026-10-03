@@ -1,0 +1,5 @@
+# The local web prototype (spec docs/specs/2026-10-03-m8a-web-prototype-design.md).
+host = "127.0.0.1"   # local only until sign-in exists (M7/M8b)
+port = 8000
+max_upload_mb = 10   # per photo
+poll_seconds = 1.0   # how often a running claim's page checks for new events

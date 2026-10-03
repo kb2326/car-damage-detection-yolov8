@@ -14,8 +14,10 @@ from typing import Any
 
 from langgraph.types import Command
 
+from claimlens.blobs import BlobStore
 from claimlens.events.envelope import Actor, ActorKind
 from claimlens.events.payloads import IntakeCompleted
+from claimlens.events.store import SQLiteEventStore
 from claimlens.intake import submit_claim
 from claimlens.intake_agent.config import IntakeConfig
 from claimlens.intake_agent.graph import IntakeState, initial_state
@@ -128,6 +130,45 @@ def transcript_sha256(transcript: Sequence[dict[str, str]]) -> str:
     return hashlib.sha256(json.dumps(list(transcript), sort_keys=True).encode()).hexdigest()
 
 
+def file_intake_claim(
+    store: SQLiteEventStore, blobs: BlobStore, state: IntakeState, config: IntakeConfig
+) -> uuid.UUID:
+    """File the collected claim and record IntakeCompleted, once per session. Does not run the
+    pipeline: the CLI runs it straight away, the web app on its claims worker."""
+    photos = state["photos"]
+    kinds = [k for k in config.photo_kinds if k in photos]
+    kinds += sorted(k for k in photos if k not in config.photo_kinds)
+    facts = state["facts"]
+    # One claim per session: a hand-over that is retried after a failure files nothing new.
+    claim_id = uuid.uuid5(_NAMESPACE, state["session_id"])
+    if claim_id not in store.claim_ids():
+        submit_claim(
+            store,
+            blobs,
+            policy_id=facts.get("policy_id", "unknown"),
+            description=facts.get("what_happened", ""),
+            photo_paths=[Path(photos[k]) for k in kinds],
+            claim_id=claim_id,
+            allow_no_photos=True,
+        )
+    if not any(e.type == "IntakeCompleted" for e in store.load(claim_id)):
+        store.append(
+            claim_id,
+            IntakeCompleted(
+                session_id=state["session_id"],
+                facts=dict(facts),
+                photo_kinds={kind: f"p{n}" for n, kind in enumerate(kinds, start=1)},
+                photo_gaps=dict(state["gaps"]),
+                turns=state["turns"],
+                retakes=sum(state["retakes"].values()),
+                transcript_sha256=transcript_sha256(state["transcript"]),
+                handover=state.get("handover", ""),
+            ),
+            Actor(kind=ActorKind.AGENT, name=config.version),
+        )
+    return claim_id
+
+
 def pipeline_submitter(
     deps_factory: Callable[[], PipelineDeps], config: IntakeConfig, *, process: bool
 ) -> Callable[[IntakeState], str]:
@@ -135,37 +176,7 @@ def pipeline_submitter(
 
     def submit(state: IntakeState) -> str:
         deps = deps_factory()
-        photos = state["photos"]
-        kinds = [k for k in config.photo_kinds if k in photos]
-        kinds += sorted(k for k in photos if k not in config.photo_kinds)
-        facts = state["facts"]
-        # One claim per session: a hand-over that is retried after a failure files nothing new.
-        claim_id = uuid.uuid5(_NAMESPACE, state["session_id"])
-        if claim_id not in deps.store.claim_ids():
-            submit_claim(
-                deps.store,
-                deps.blobs,
-                policy_id=facts.get("policy_id", "unknown"),
-                description=facts.get("what_happened", ""),
-                photo_paths=[Path(photos[k]) for k in kinds],
-                claim_id=claim_id,
-                allow_no_photos=True,
-            )
-        if not any(e.type == "IntakeCompleted" for e in deps.store.load(claim_id)):
-            deps.store.append(
-                claim_id,
-                IntakeCompleted(
-                    session_id=state["session_id"],
-                    facts=dict(facts),
-                    photo_kinds={kind: f"p{n}" for n, kind in enumerate(kinds, start=1)},
-                    photo_gaps=dict(state["gaps"]),
-                    turns=state["turns"],
-                    retakes=sum(state["retakes"].values()),
-                    transcript_sha256=transcript_sha256(state["transcript"]),
-                    handover=state.get("handover", ""),
-                ),
-                Actor(kind=ActorKind.AGENT, name=config.version),
-            )
+        claim_id = file_intake_claim(deps.store, deps.blobs, state, config)
         if process:  # process_claim is idempotent: a retry finishes what is missing
             process_claim(claim_id, deps)
         return str(claim_id)
