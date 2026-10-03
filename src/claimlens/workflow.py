@@ -27,6 +27,8 @@ from claimlens.events.payloads import (
 from claimlens.events.projection import ClaimState, PhotoStatus, fold
 from claimlens.events.store import SQLiteEventStore
 from claimlens.integrity import check_integrity
+from claimlens.memory.index import ClaimMemory
+from claimlens.memory.writer import needs_memory, remember
 from claimlens.policy import PolicyRepository
 from claimlens.pricing import RateCard, estimate_cost
 from claimlens.quality import QualityConfig, check_quality
@@ -46,12 +48,14 @@ class PipelineDeps:
     decision_config: DecisionConfig
     agent: TriageAgent
     quality: QualityConfig = field(default_factory=QualityConfig)
+    memory: ClaimMemory | None = None  # written after each decision; never read by rules
 
 
 def process_claim(claim_id: UUID, deps: PipelineDeps) -> Decision:
     """Run every unfinished stage, then decide. Safe to call again after any interruption."""
     state = _load(deps, claim_id)
     if state.decision is not None:
+        _remember(claim_id, deps)  # fills in a memory write a crash may have missed
         return state.decision
     stages: tuple[Callable[[ClaimState, PipelineDeps], None], ...] = (
         _quality_stage,
@@ -65,7 +69,13 @@ def process_claim(claim_id: UUID, deps: PipelineDeps) -> Decision:
         stage(_load(deps, claim_id), deps)
     decision = decide(_load(deps, claim_id), deps.decision_config)
     deps.store.append(claim_id, RouteDecided(decision=decision), WORKFLOW)
+    _remember(claim_id, deps)
     return decision
+
+
+def _remember(claim_id: UUID, deps: PipelineDeps) -> None:
+    if deps.memory is not None and needs_memory(deps.store, claim_id):
+        remember(deps.store, claim_id, deps.memory, deps.blobs.path)
 
 
 def _load(deps: PipelineDeps, claim_id: UUID) -> ClaimState:
