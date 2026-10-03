@@ -22,8 +22,11 @@ def submit_claim(
     description: str,
     photo_paths: Sequence[Path],
     claim_id: UUID | None = None,
+    allow_no_photos: bool = False,
 ) -> UUID:
-    if not photo_paths:
+    """Record a claim. `allow_no_photos` is for intake: a claim with no usable photo is still
+    filed, and rule R3 sends it to a person."""
+    if not photo_paths and not allow_no_photos:
         raise ValueError("a claim needs at least one photo")
     for path in photo_paths:
         if not path.is_file():

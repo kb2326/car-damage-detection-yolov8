@@ -181,7 +181,7 @@ something that already works.*
 
 *Add the conversation with the customer, and give the system a governed memory.*
 
-- [ ] Multi-turn intake agent with guided photo capture
+- [x] Multi-turn intake agent with guided photo capture: `claimlens intake`, pause and resume, photo coaching with retakes (M6a, ADR 0016); 3 live scripted customers complete intake, $0.18
 - [ ] Episodic memory (claim history, image similarity) and semantic memory (policies, similar claims)
 - [ ] Three Agent Skills (`SKILL.md`), each approved by you
 - [ ] Stretch: simulated claimant tests with pass^k
