@@ -26,6 +26,7 @@ from claimlens.decision import load_decision_config
 from claimlens.domain import Frozen, Route
 from claimlens.evals.agent_metrics import AgentQuality
 from claimlens.evals.golden import GoldenClaim, load_golden, write_golden
+from claimlens.evals.intake_commands import add_eval_intake_parser, run_eval_intake
 from claimlens.evals.judge_commands import (
     JudgeGatewayFactory,
     add_judge_parser,
@@ -339,6 +340,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_judge_parser(sub)
     add_intake_parser(sub)
     add_memory_parser(sub)
+    add_eval_intake_parser(sub)
     return parser
 
 
@@ -406,6 +408,8 @@ def main(
         return run_memory_command(args, embedder_factory)
     setup_tracing()  # does nothing unless CLAIMLENS_TRACING=1
     try:
+        if args.command == "eval-intake":
+            return run_eval_intake(args)
         if args.command == "judge":
             return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
         args.agent_factory = agent_factory
