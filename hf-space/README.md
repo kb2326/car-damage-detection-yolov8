@@ -3,8 +3,8 @@ title: ClaimLens
 emoji: 🚗
 colorFrom: blue
 colorTo: gray
-sdk: docker
-app_port: 7860
+sdk: static
+app_file: index.html
 pinned: false
 license: other
 short_description: Read-only showcase of an auditable AI claims-triage system
@@ -12,7 +12,7 @@ short_description: Read-only showcase of an auditable AI claims-triage system
 
 # ClaimLens: showcase
 
-A **read-only showcase** of ClaimLens, an AI system that triages car-damage insurance claims:
+A **read-only showcase** of ClaimLens (the real web app's pages, rendered once from recorded claims), an AI system that triages car-damage insurance claims:
 our own vision models measure the damage, an LLM agent reasons over the evidence and the policy
 wording, and rules decide the route. Only a person can deny a claim.
 
