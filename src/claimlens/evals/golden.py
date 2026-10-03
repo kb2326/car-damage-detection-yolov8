@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import Self
+
+from pydantic import model_validator
 
 from claimlens.domain import Frozen, Route
 
@@ -26,6 +29,16 @@ class GoldenClaim(Frozen):
     prior_claims: tuple[PriorClaim, ...] = ()
     reviewed: bool = False
     notes: str = ""
+    # Narrative cases (golden v2): the story, not the photo, decides the route.
+    narrative: bool = False
+    expected_citations: tuple[str, ...] = ()  # any one of these clause ids is a hit
+    must_not_fast_track_reason: str = ""
+
+    @model_validator(mode="after")
+    def _reason_only_for_escalations(self) -> Self:
+        if self.must_not_fast_track_reason and self.expected_route is Route.FAST_TRACK:
+            raise ValueError("must_not_fast_track_reason is only for cases that must escalate")
+        return self
 
 
 def load_golden(path: Path) -> list[GoldenClaim]:
@@ -41,4 +54,34 @@ def load_golden(path: Path) -> list[GoldenClaim]:
 
 def write_golden(path: Path, cases: Sequence[GoldenClaim]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(case.model_dump_json() + "\n" for case in cases), encoding="utf-8")
+    path.write_text("".join(_line(case) + "\n" for case in cases), encoding="utf-8")
+
+
+_NARRATIVE_FIELDS = ("narrative", "expected_citations", "must_not_fast_track_reason")
+
+
+def _line(case: GoldenClaim) -> str:
+    """One JSON line; the narrative fields are left out when unset, so v1 files stay unchanged."""
+    unset = {f for f in _NARRATIVE_FIELDS if f not in case.model_fields_set}
+    return case.model_dump_json(exclude=unset)
+
+
+def check_golden_citations(
+    cases: Sequence[GoldenClaim],
+    wording_of_policy: Mapping[str, str],
+    wording_of_clause: Callable[[str], str | None],
+) -> list[str]:
+    """Problems with expected citations: unknown clauses, or clauses from another wording."""
+    problems: list[str] = []
+    for case in cases:
+        wording = wording_of_policy.get(case.policy_id)
+        for clause in case.expected_citations:
+            actual = wording_of_clause(clause)
+            if actual is None:
+                problems.append(f"{case.case_id}: clause {clause} does not exist")
+            elif actual != wording:
+                problems.append(
+                    f"{case.case_id}: clause {clause} is from the {actual} wording, "
+                    f"but {case.policy_id} uses {wording}"
+                )
+    return problems
