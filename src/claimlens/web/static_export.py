@@ -38,6 +38,12 @@ def _rewrite(html: str, photos: dict[tuple[str, str], str]) -> str:
     for path, name in sorted(PAGES.items(), key=lambda item: -len(item[0])):
         html = html.replace(f'href="{path}"', f'href="{name}"')
     html = html.replace('<a href="/docs">API</a>', f'<a href="{REPO}">Code</a>')
+    # Hugging Face shows the Space in a frame; sites like GitHub refuse to load inside one.
+    html = re.sub(
+        r'<a href="(https?://[^"]+)">',
+        r'<a href="" target="_blank" rel="noopener noreferrer">',
+        html,
+    )
     # The page scripts only follow a running claim or post forms; a static page needs neither.
     html = re.sub(r'<script[^>]*src="static/[^"]+"></script>', "", html)
     return html

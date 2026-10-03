@@ -59,3 +59,16 @@ def test_the_recorded_chat_is_the_home_page(services: WebServices, tmp_path: Pat
     home = (out / "index.html").read_text(encoding="utf-8")
     assert "A recorded claim chat" in home
     assert "Hello!" in home
+
+
+def test_external_links_open_in_a_new_tab(services: WebServices, tmp_path: Path) -> None:
+    """Hugging Face shows the Space in a frame, and GitHub refuses to load inside one."""
+    shown, _ = _showcase(services, tmp_path)
+    out = tmp_path / "site"
+    export_site(shown, out)
+    for page in out.glob("*.html"):
+        for tag in re.findall(
+            r'<a [^>]*href="https?://[^"]+"[^>]*>', page.read_text(encoding="utf-8")
+        ):
+            assert 'target="_blank"' in tag, (page.name, tag)
+            assert 'rel="noopener noreferrer"' in tag, (page.name, tag)
