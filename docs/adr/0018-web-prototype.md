@@ -60,7 +60,7 @@ flow working before more trust work, so the order changed:
     with the reason on the claim page: the safeguards worked as designed.
   - With the owner's approval, `serve --llm-daily-cap` raised the cap for the run. A full chat then
     collected every fact and three CC BY 4.0 `car-seg` photos in 12 turns; the claim was decided,
-    written to memory and reviewed in the browser, and `claimlens verify` reported `Chain OK`
+    written to memory and reviewed through the review API, and `claimlens verify` reported `Chain OK`
     (23 events). The agent cost $0.018.
   - Rule R1 sent it to fraud review because the aborted first attempt had used the same photo, and
     the agent's reasons named the reuse and the story's mismatch with the damage.
