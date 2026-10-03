@@ -39,6 +39,8 @@ flow working before more trust work, so the order changed:
   stages as they finish (polled every second).
 - **Safety, even locally:**
   - binds to `127.0.0.1`; any other host is refused until sign-in exists;
+  - answers only to the host names `127.0.0.1` and `localhost` (a DNS-rebinding page is refused),
+    and refuses a state-changing request from another site's page (Origin check);
   - templates autoescape and the scripts insert text only;
   - uploads must be a real JPEG, PNG or WebP (checked by content), at most 10 MB, and are stored
     under their content hash; a photo is served only for the claim it belongs to;
@@ -52,7 +54,7 @@ flow working before more trust work, so the order changed:
 
 ## Consequences
 
-- 54 tests for the web layer, and one Playwright browser test that files a claim by
+- 64 tests for the web layer (10 of them from the final review's findings), and one Playwright browser test that files a claim by
   chat, follows it and approves it (local only; CI skips it).
 - **Live check (2026-10-03), Haiku chat and Sonnet agent:**
   - The first attempt hit the $1 daily LLM cap, already used by the day's M6 evaluations. The chat
@@ -66,5 +68,8 @@ flow working before more trust work, so the order changed:
     the agent's reasons named the reuse and the story's mismatch with the damage.
   - On these undamaged cars the damage model still reported low-confidence findings (0.08 to
     0.39), which inflate the cost estimate; rule R6 (0.65) keeps such claims away from a fast-track.
+- **The final review** found an LLM outage could leave a filed claim unprocessed, that a reviewer's
+  route change vanished from the review lists, and no Host/Origin checks; all were fixed test-first,
+  with phone JPEGs (MPO), reloads after the hand-over, error text and reviews during processing.
 - **Limits:** no sign-in or roles; one-second polling instead of push; one worker per area, so two
   chats wait for each other; no Docker yet (M8b).
