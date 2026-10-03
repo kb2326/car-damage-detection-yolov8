@@ -30,7 +30,7 @@ of every consequential decision.
 | Human review | Review queue; only a person can deny; payments wait for a person on review routes | `claimlens queue`, `claimlens review-claim` |
 | LLM gateway | Tiers, retries, fallback, cache; caps of $0.10 per claim and $1 per day | Two live test calls cost $0.0006 in total |
 | Web prototype | `claimlens serve`: chat, claims list, claim page, review (local only) | Live claim filed, decided and reviewed; log verified |
-| Red team | 33 attacks mapped to the OWASP agentic top 10, run with a model that obeys the attacker; live injections on the real agent | **33 of 33 held**; live: 15 of 15 to a person, agent fooled 0 times |
+| Red team | 34 attacks mapped to the OWASP agentic top 10, run with a model that obeys the attacker; live injections on the real agent | **33 of 33 run held** (+ dependency audit in CI); live: 15 of 15 to a person, agent fooled 0 times |
 | Fraud | Exact and near-copy photo reuse across claims (memory) → fraud review | Re-saves and 2% crops caught |
 | Policy search | 56 fictional clauses, LanceDB hybrid search, citation check | recall@5 **1.00** on 10 questions (a small corpus, so a generous bar) |
 
@@ -250,7 +250,7 @@ uv run claimlens eval-gate
 uv run claimlens --agent llm --detector fused eval-triage --golden evals/golden/v2/claims.jsonl \
   --llm-daily-cap 18 --scorecard evals/scorecards/current.json --report evals/reports/run.md
 
-# Red team: 33 attacks with a model that obeys the attacker (free), then live injections (~$0.20)
+# Red team: 34 attacks with a model that obeys the attacker (free), then live injections (~$0.20)
 uv run claimlens eval-redteam --report evals/reports/redteam.md
 uv run claimlens --agent llm eval-triage --golden evals/redteam/injections.jsonl   --report evals/reports/redteam-live.md
 ```

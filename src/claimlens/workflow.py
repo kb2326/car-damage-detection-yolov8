@@ -48,7 +48,8 @@ class PipelineDeps:
     decision_config: DecisionConfig
     agent: TriageAgent
     quality: QualityConfig = field(default_factory=QualityConfig)
-    memory: ClaimMemory | None = None  # written after each decision; never read by rules
+    # Written after each decision; read only by the integrity check (near-copy photos -> R1).
+    memory: ClaimMemory | None = None
 
 
 def process_claim(claim_id: UUID, deps: PipelineDeps) -> Decision:

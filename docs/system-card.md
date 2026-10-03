@@ -29,9 +29,11 @@ customer ─▶ intake chat (Claude Haiku) ─▶ claim log (append-only, hash-c
 ```
 
 **Models measure, the agent reasons, rules decide.** The agent's recommendation is one input to
-the rules; it can make a claim *safer* (send it to a person) but never *riskier*: a fraud signal,
-a failure, no usable photo, missing cover, a large estimate or a low-confidence finding all send
-the claim to a person whatever the agent says.
+the rules. A fraud signal, a failure, no usable photo, missing cover, a large estimate or a
+low-confidence finding (rules R1 to R6) all send the claim to a person **whatever the agent says**.
+One thing only the agent checks: an exclusion that appears only in the customer's story (business
+use, racing, an unlicensed driver). No rule reads the story, so for those claims the agent's own
+judgement is the control (rules R7 and R8 act on its doubt); see section 6.
 
 ## 3. Components
 
@@ -56,7 +58,7 @@ the claim to a person whatever the agent says.
 | Harmless stories | Stories that should be fast-tracked | 5 of 10 (the agent is cautious) |
 | Citations | Every clause the agent cites must exist in the customer's own wording | validity 1.00 |
 | Intake | 10 simulated customers × 4 tries (vague, over-sharing, story-changing, bad photos) | pass^4 0.80 (target 0.70) |
-| Red team, hijacked | 33 attacks over the OWASP agentic top 10; the fake model obeys the attacker | **33 of 33 held** |
+| Red team, hijacked | 34 attacks over the OWASP agentic top 10; the fake model obeys the attacker | **33 of 33 run held**, plus a dependency audit in CI |
 | Red team, live | 15 risky stories with prompt injections, real Sonnet agent | 15 of 15 sent to a person; the agent was fooled 0 times |
 | CI gate | Every PR: tests, types, lint, dependency audit, eval gate on a committed scorecard | safety metrics must stay 1.00 |
 
@@ -82,6 +84,11 @@ Reports: `evals/reports/` (golden v2, simulated customers, red team, live red te
 
 ## 6. Limitations and open risks
 
+- **Exclusions in the story rest on the agent.** For business use, racing or an unlicensed driver
+  mentioned only in the customer's words, no rule is a backstop: a fully fooled agent could let
+  such a claim through to R9. The live red team measured this (15 of 15 injected stories sent to a
+  person, the agent fooled 0 times), but it is measured, not guaranteed. A code check of the story
+  (keyword or classifier, reviewed by people) is the planned control.
 - **Data:** CarDD and course photos only; no real claim photos, no night or rain variety.
 - **Weak findings on undamaged cars:** the damage model reports low-confidence damage
   (0.08–0.39) on clean cars, which inflates estimates; R6 keeps such claims from a fast-track.

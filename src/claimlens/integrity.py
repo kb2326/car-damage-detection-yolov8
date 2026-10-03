@@ -3,6 +3,7 @@ as a near-copy found in the claim memory (M7, ADR 0019)."""
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -16,6 +17,7 @@ from claimlens.memory.records import phash_of
 if TYPE_CHECKING:
     from claimlens.memory.index import ClaimMemory
 
+log = logging.getLogger(__name__)
 NEAR_COPY_SCORE = 0.8  # strong evidence, a little below an exact copy (1.0); R1 needs 0.5
 
 
@@ -27,7 +29,10 @@ def check_integrity(
 ) -> tuple[FraudSignal, ...]:
     signals, exact = _exact_copies(state, store)
     if memory is not None and photo_path is not None:
-        signals += _near_copies(state, memory, photo_path, skip=exact)
+        try:
+            signals += _near_copies(state, memory, photo_path, skip=exact)
+        except Exception:  # memory or a photo unreadable: keep the exact-copy evidence
+            log.exception("near-copy check skipped for claim %s", state.claim_id)
     return tuple(signals)
 
 

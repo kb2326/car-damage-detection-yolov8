@@ -117,3 +117,34 @@ def test_a_forgotten_claim_no_longer_matches(
     deps.memory.forget(str(first))
     second = _claim(deps, resaved(original, tmp_path / "b.jpg"))
     assert _signals(store, second) == []
+
+
+def test_a_broken_memory_keeps_the_exact_copy_signal(
+    tmp_path: Path, store: SQLiteEventStore
+) -> None:
+    class Broken(ClaimMemory):
+        def all(self) -> list:  # type: ignore[type-arg]
+            raise OSError("lance table unreadable")
+
+    deps = replace(
+        make_test_deps(tmp_path, store, FakeDetector()),
+        memory=Broken(tmp_path / "m", FakeEmbedder()),
+    )
+    original = scene(tmp_path / "a.png")
+    _claim(deps, original)
+    second = _claim(deps, original)
+    assert [k for k, _, _ in _signals(store, second)] == ["photo_reuse"]
+    decision = fold(store.load(second)).decision
+    assert decision is not None
+    assert decision.rule_id == "R1"
+
+
+def test_a_remembered_claim_does_not_match_itself(tmp_path: Path, store: SQLiteEventStore) -> None:
+    from claimlens.integrity import check_integrity
+
+    deps = _deps(tmp_path, store)
+    first = _claim(deps, scene(tmp_path / "a.png"))
+    assert deps.memory is not None
+    assert deps.memory.get(str(first)) is not None  # remembered, so a self-match is possible
+    state = fold(store.load(first))
+    assert check_integrity(state, store, deps.memory, deps.blobs.path) == ()

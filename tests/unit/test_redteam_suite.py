@@ -77,7 +77,7 @@ def test_the_report_lists_every_attack_and_the_coverage() -> None:
     assert "RT-02" in report
     assert "| ASI07 |" in report
     assert "not applicable" in report.lower()
-    assert "2 of 2" in report
+    assert "1 of 1 attacks run held" in report
 
 
 def test_eval_redteam_writes_a_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -89,7 +89,7 @@ def test_eval_redteam_writes_a_report(tmp_path: Path, monkeypatch: pytest.Monkey
     )
     report = tmp_path / "redteam.md"
     assert cli.main(["eval-redteam", "--report", str(report)]) == 0
-    assert "every attack held" in report.read_text(encoding="utf-8").lower()
+    assert "every attack run held" in report.read_text(encoding="utf-8").lower()
 
 
 def test_a_broken_attack_fails_the_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -115,3 +115,59 @@ def test_the_live_injection_set_is_well_formed() -> None:
     assert len(styles) == 5
     for row in rows:
         GoldenClaim.model_validate(row)
+
+
+def test_a_skipped_or_xfailed_attack_test_is_not_held(tmp_path: Path) -> None:
+    from claimlens.evals.redteam import run_attacks
+
+    module = tmp_path / "test_fake_attacks.py"
+    module.write_text(
+        "import pytest\n\n"
+        "def test_skips():\n    pytest.skip('optional dependency missing')\n\n"
+        "@pytest.mark.xfail\ndef test_xfails():\n    assert False\n\n"
+        "def test_passes():\n    assert True\n",
+        encoding="utf-8",
+    )
+    path = module.as_posix()
+    attacks = [
+        Attack(
+            id="RT-01",
+            asi="ASI01",
+            surface="s",
+            payload="p",
+            expect="e",
+            test=f"{path}::test_skips",
+        ),
+        Attack(
+            id="RT-02",
+            asi="ASI01",
+            surface="s",
+            payload="p",
+            expect="e",
+            test=f"{path}::test_xfails",
+        ),
+        Attack(
+            id="RT-03",
+            asi="ASI01",
+            surface="s",
+            payload="p",
+            expect="e",
+            test=f"{path}::test_passes",
+        ),
+    ]
+    results = run_attacks(attacks, tmp_path)
+    assert results == {"RT-01": "skipped", "RT-02": "skipped", "RT-03": "held"}
+
+
+def test_the_report_separates_ci_checks_from_attacks_run() -> None:
+    attacks = [
+        Attack(id="RT-01", asi="ASI01", surface="story", payload="p", expect="e", test="t::a"),
+        Attack(
+            id="RT-02", asi="ASI04", surface="deps", payload="p", expect="e", test="ci:pip-audit"
+        ),
+    ]
+    report = render_redteam_report(
+        attacks, {"RT-01": "held", "RT-02": "checked in CI"}, date(2026, 10, 3)
+    )
+    assert "1 of 1 attacks run held" in report
+    assert "1 checked in CI" in report

@@ -206,7 +206,7 @@ public demo. Order now: **M8a → trimmed M7 → M8b**. Nothing goes public befo
 
 *Try to break the system before others do.*
 
-- [x] Red-team suite: 33 attacks mapped to the OWASP agentic top 10, hijacked-model mode in CI (33 of 33 held); live run on the real agent (15 of 15 to a person) (ADR 0019)
+- [x] Red-team suite: 34 attacks mapped to the OWASP agentic top 10, hijacked-model mode in CI (33 of 33 run held; the dependency audit runs in CI); live run on the real agent (15 of 15 to a person) (ADR 0019)
 - [x] Dependency audit (`pip-audit`) in CI
 - [x] Near-copy photos (memory) as a fraud signal for rule R1
 - [x] [System card](system-card.md)

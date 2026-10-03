@@ -12,7 +12,14 @@ from uuid import UUID
 import pytest
 
 from claimlens.agent.stub import StubTriageAgent
-from claimlens.domain import AgentRecommendation, Confidence, Route
+from claimlens.domain import (
+    AgentRecommendation,
+    BoundingBox,
+    Confidence,
+    DamageFinding,
+    DamageType,
+    Route,
+)
 from claimlens.events.payloads import HumanReviewed, ReviewAction
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import SQLiteEventStore
@@ -51,6 +58,17 @@ def _route(
     policy = "P-1001"
     if scenario == "low_confidence":
         detector = FakeDetector(findings={"p1": [dent("p1", confidence=0.3)]})
+    elif scenario == "large_estimate":  # a severe dent: the estimate passes the $3,000 limit
+        severe = DamageFinding(
+            photo_id="p1",
+            damage_type=DamageType.DENT,
+            confidence=0.95,
+            bbox=BoundingBox(x1=0, y1=0, x2=600, y2=400),
+            image_area_fraction=0.6,
+            part="door",
+            part_area_ratio=0.9,
+        )
+        detector = FakeDetector(findings={"p1": [severe]})
     elif scenario == "no_collision_cover":
         policy = "P-2002"
     elif scenario == "unknown_policy":
@@ -73,7 +91,14 @@ def _route(
 
 @pytest.mark.parametrize(
     "scenario",
-    ["reused_photo", "no_usable_photo", "no_collision_cover", "unknown_policy", "low_confidence"],
+    [
+        "reused_photo",
+        "no_usable_photo",
+        "no_collision_cover",
+        "unknown_policy",
+        "large_estimate",
+        "low_confidence",
+    ],
 )
 def test_a_hijacked_agent_cannot_weaken_the_route(
     tmp_path: Path, make_image: Callable[..., Path], scenario: str
@@ -119,8 +144,9 @@ def test_no_route_or_rule_can_deny() -> None:
 def test_an_injected_story_is_kept_as_data(
     tmp_path: Path, store: SQLiteEventStore, make_image: Callable[..., Path]
 ) -> None:
-    """ASI01: the story is stored and shown as the customer's words; it is never an instruction."""
-    deps = make_test_deps(tmp_path, store, FakeDetector())
+    """ASI01: with a hijacked agent, the story stays the customer's words and nothing is paid:
+    no agent output can issue a payment."""
+    deps = replace(make_test_deps(tmp_path, store, FakeDetector()), agent=HijackedAgent())
     claim = submit_claim(
         store,
         deps.blobs,

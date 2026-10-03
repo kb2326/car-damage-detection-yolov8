@@ -56,34 +56,52 @@ def coverage(attacks: list[Attack]) -> dict[str, int]:
     return dict(Counter(a.asi for a in attacks))
 
 
+_RANK = {"held": 0, "skipped": 1, "broken": 2}  # the worst outcome of any case wins
+
+
+def _key(test: str) -> tuple[str, str]:
+    """(file name, test name): the same however pytest spells the path."""
+    path, _, name = test.partition("::")
+    return Path(path).name, name.split("[", 1)[0]
+
+
 def run_attacks(attacks: list[Attack], root: Path) -> dict[str, str]:
-    """Run each attack's test with pytest: "held" (passed), "broken" (failed) or "missing"."""
+    """Run each attack's test with pytest. "held" only when every case passed; a skipped or
+    expected-to-fail case is "skipped", a failure or setup error "broken", no result "missing"."""
     import pytest
 
-    outcomes: dict[str, str] = {}
+    outcomes: dict[tuple[str, str], str] = {}
+
+    def note(key: tuple[str, str], outcome: str) -> None:
+        if _RANK[outcome] >= _RANK.get(outcomes.get(key, "held"), 0):
+            outcomes[key] = outcome
 
     class Collector:
         def pytest_runtest_logreport(self, report: Any) -> None:
-            if report.when == "call" or report.failed:
-                node = report.nodeid.split("[", 1)[0]
-                if report.failed:
-                    outcomes[node] = "broken"
-                else:
-                    outcomes.setdefault(node, "held")
+            key = _key(report.nodeid)
+            if report.failed:
+                note(key, "broken")
+            elif report.skipped:
+                note(key, "skipped")
+            elif report.when == "call" and report.passed:
+                note(key, "held")
 
     nodes = sorted({a.test for a in attacks if not a.test.startswith("ci:")})
-    pytest.main(["-q", "--no-cov", "-p", "no:cacheprovider", *nodes], plugins=[Collector()])
+    args = ["-q", "--no-cov", "-p", "no:cacheprovider", f"--rootdir={root}", *nodes]
+    pytest.main(args, plugins=[Collector()])
     results: dict[str, str] = {}
     for attack in attacks:
         if attack.test.startswith("ci:"):
             results[attack.id] = "checked in CI"
         else:
-            results[attack.id] = outcomes.get(attack.test, "missing")
+            results[attack.id] = outcomes.get(_key(attack.test), "missing")
     return results
 
 
 def render_redteam_report(attacks: list[Attack], results: dict[str, str], today: date) -> str:
-    held = [a for a in attacks if results.get(a.id) in ("held", "checked in CI")]
+    run = [a for a in attacks if results.get(a.id) != "checked in CI"]
+    held = [a for a in run if results.get(a.id) == "held"]
+    in_ci = len(attacks) - len(run)
     counts = coverage(attacks)
     lines = [
         f"# Red-team suite ({today.isoformat()})",
@@ -91,8 +109,9 @@ def render_redteam_report(attacks: list[Attack], results: dict[str, str], today:
         "Hijacked mode: the fake LLM does what each attack asks; a pass means the code controls",
         "held. Mapped to the OWASP Top 10 for Agentic Applications.",
         "",
-        f"**{len(held)} of {len(attacks)} attacks held.**"
-        + (" Every attack held." if len(held) == len(attacks) else ""),
+        f"**{len(held)} of {len(run)} attacks run held**"
+        + (f"; {in_ci} checked in CI (not run here)." if in_ci else ".")
+        + (" Every attack run held." if len(held) == len(run) else ""),
         "",
         "## Coverage",
         "",
@@ -129,7 +148,9 @@ def run_redteam_command(report: Path, root: Path, today: date | None = None) -> 
         render_redteam_report(attacks, results, today or date.today()), encoding="utf-8"
     )
     broken = [a.id for a in attacks if results[a.id] not in ("held", "checked in CI")]
-    print(f"{len(attacks) - len(broken)} of {len(attacks)} attacks held; report: {report}")
+    in_ci = sum(1 for a in attacks if results[a.id] == "checked in CI")
+    run = len(attacks) - in_ci
+    print(f"{run - len(broken)} of {run} attacks run held, {in_ci} checked in CI; report: {report}")
     for attack_id in broken:
         print(f"NOT HELD: {attack_id} ({results[attack_id]})")
     return 1 if broken else 0

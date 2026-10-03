@@ -26,7 +26,7 @@ jobs:
       - name: Dependency audit
         run: |
           uv export --frozen --no-hashes --format requirements-txt --all-groups --no-emit-project > "$RUNNER_TEMP/requirements.txt"
-          uvx pip-audit -r "$RUNNER_TEMP/requirements.txt" --disable-pip --no-deps --progress-spinner off --ignore-vuln PYSEC-2026-2447
+          uvx pip-audit==2.10.1 -r "$RUNNER_TEMP/requirements.txt" --disable-pip --no-deps --progress-spinner off --ignore-vuln PYSEC-2026-2447
       - name: Type check
         run: uv run mypy
       - name: Tests
