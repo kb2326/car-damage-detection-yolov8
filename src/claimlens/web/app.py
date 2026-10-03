@@ -20,7 +20,7 @@ def get_services(request: Request) -> WebServices:
 
 
 def create_app(services: WebServices) -> FastAPI:
-    from claimlens.web.routers import claims
+    from claimlens.web.routers import claims, review
 
     app = FastAPI(
         title="ClaimLens",
@@ -30,6 +30,7 @@ def create_app(services: WebServices) -> FastAPI:
     app.state.services = services
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     app.include_router(claims.router)
+    app.include_router(review.router)
 
     @app.exception_handler(RequestValidationError)
     async def _invalid(request: Request, exc: RequestValidationError) -> JSONResponse:
