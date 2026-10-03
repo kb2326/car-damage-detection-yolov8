@@ -20,6 +20,7 @@ from claimlens.workflow import PipelineDeps, process_claim
 
 if TYPE_CHECKING:
     from claimlens.evals.agent_metrics import AgentQuality
+    from claimlens.llm.config import LLMConfig
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class CaseResult:
     tool_calls: int = 0
     llm_cost_usd: float = 0.0
     agent_error: str = ""
+    llm_tokens: tuple[tuple[str, int, int], ...] = ()
 
 
 def _cell(text: str) -> str:
@@ -57,6 +59,26 @@ def agent_counts(events: Sequence[ClaimEvent]) -> tuple[int, int, float, str]:
         "",
     )
     return len(llm), tools, cost, error
+
+
+def llm_tokens(events: Sequence[ClaimEvent]) -> tuple[tuple[str, int, int], ...]:
+    """(model, input tokens, output tokens) for every model call, cache hits included."""
+    return tuple(
+        (str(e.payload["model"]), int(e.payload["input_tokens"]), int(e.payload["output_tokens"]))
+        for e in events
+        if e.type == "LLMCalled"
+    )
+
+
+def mean_list_cost(results: Sequence[CaseResult], config: LLMConfig) -> float | None:
+    """Mean cost per claim at list price, as if nothing came from the response cache.
+
+    The gate compares this, so a run that happens to hit the cache does not look cheaper.
+    """
+    if not results:
+        return None
+    total = sum(config.cost(m, tin, tout) for r in results for m, tin, tout in r.llm_tokens)
+    return total / len(results)
 
 
 @dataclass(frozen=True)
@@ -132,6 +154,7 @@ def run_case(case: GoldenClaim, deps: PipelineDeps, repo_root: Path) -> CaseResu
         tool_calls=tool_calls,
         llm_cost_usd=cost,
         agent_error=agent_error,
+        llm_tokens=llm_tokens(events),
     )
 
 

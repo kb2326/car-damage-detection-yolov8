@@ -717,6 +717,8 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
         _save_run(results, args.save_run)
     if args.scorecard is not None:
         from claimlens.evals.scorecard import Scorecard, fingerprints, scorecard_metrics
+        from claimlens.evals.triage import mean_list_cost
+        from claimlens.llm.config import load_llm_config
 
         card = Scorecard(
             created_on=date.today(),
@@ -726,7 +728,12 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
                 "detector": meta.model_version,
                 "decision_policy": meta.decision_policy_version,
             },
-            metrics=scorecard_metrics(metrics, summary, quality),
+            metrics=scorecard_metrics(
+                metrics,
+                summary,
+                quality,
+                list_cost_mean=mean_list_cost(results, load_llm_config(args.config / "llm.toml")),
+            ),
             fingerprints=fingerprints(Path.cwd(), args.golden),
         )
         args.scorecard.parent.mkdir(parents=True, exist_ok=True)

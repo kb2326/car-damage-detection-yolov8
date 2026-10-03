@@ -396,3 +396,59 @@ def test_report_adds_agent_quality_and_missed_narrative_cases() -> None:
     assert "| Narrative cases caught | 0.00 |" in report
     assert "## Narrative cases the agent missed" in report
     assert "| n001 | exclusion_racing | racing | FAST_TRACK, high | Covered collision. |" in report
+
+
+def test_list_price_cost_ignores_the_response_cache() -> None:
+    from claimlens.evals.triage import mean_list_cost
+    from claimlens.llm.config import load_llm_config
+
+    config = load_llm_config(CONFIG_DIR / "llm.toml")
+    fresh = CaseResult(
+        "a",
+        "s",
+        Route.FAST_TRACK,
+        Route.FAST_TRACK,
+        llm_cost_usd=0.003,
+        llm_tokens=(("claude-sonnet-5-5", 1000, 100),),
+    )
+    cached = CaseResult(
+        "b",
+        "s",
+        Route.FAST_TRACK,
+        Route.FAST_TRACK,
+        llm_cost_usd=0.0,
+        llm_tokens=(("claude-sonnet-5-5", 1000, 100),),
+    )
+    assert mean_list_cost([fresh, cached], config) == pytest.approx(0.003)
+    assert mean_list_cost([], config) is None
+
+
+def test_case_results_keep_tokens_of_every_call_including_cache_hits(tmp_path: Path) -> None:
+    from uuid import uuid4
+
+    from claimlens.evals.triage import llm_tokens
+    from claimlens.events.envelope import Actor, ActorKind
+    from claimlens.events.payloads import ClaimReported, LLMCalled
+
+    store = SQLiteEventStore(tmp_path / "c.db")
+    claim = uuid4()
+    system = Actor(kind=ActorKind.SYSTEM, name="t")
+    store.append(claim, ClaimReported(policy_id="P-1001", description=""), system)
+    for cached in (False, True):
+        store.append(
+            claim,
+            LLMCalled(
+                request_id="r",
+                model="claude-sonnet-5-5",
+                prompt_id="triage/v1",
+                input_tokens=1000,
+                output_tokens=100,
+                cost_usd=0.0 if cached else 0.003,
+                cached=cached,
+                outcome="ok",
+            ),
+            system,
+        )
+    events = store.load(claim)
+    store.close()
+    assert llm_tokens(events) == (("claude-sonnet-5-5", 1000, 100),) * 2

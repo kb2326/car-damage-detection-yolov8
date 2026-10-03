@@ -218,3 +218,14 @@ def test_fingerprints_accept_a_relative_golden_path(
     monkeypatch.chdir(root)
     prints = fingerprints(Path.cwd(), Path("evals/golden/v2/claims.jsonl"))
     assert "evals/golden/v2/claims.jsonl" in prints
+
+
+def test_scorecard_cost_uses_list_price_when_given() -> None:
+    from claimlens.domain import Route
+    from claimlens.evals.metrics import compute_triage_metrics
+    from claimlens.evals.scorecard import scorecard_metrics
+    from claimlens.evals.triage import AgentSummary
+
+    triage = compute_triage_metrics([(Route.FAST_TRACK, Route.FAST_TRACK)])
+    summary = AgentSummary(1, 2.0, 1.0, 0.001, 0.001, 0.001, {}, {})
+    assert scorecard_metrics(triage, summary, None, list_cost_mean=0.006)["cost_mean_usd"] == 0.006

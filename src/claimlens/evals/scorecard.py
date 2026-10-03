@@ -109,7 +109,10 @@ def check_gate(
 
 
 def scorecard_metrics(
-    triage: TriageMetrics, agent: AgentSummary | None, quality: AgentQuality | None
+    triage: TriageMetrics,
+    agent: AgentSummary | None,
+    quality: AgentQuality | None,
+    list_cost_mean: float | None = None,
 ) -> dict[str, float | None]:
     """The metrics the gate compares; the judge's pass rate is added once it is validated."""
     return {
@@ -120,7 +123,10 @@ def scorecard_metrics(
         "narrative_catch_rate": quality.narrative_catch_rate if quality else None,
         "benign_pass_rate": quality.benign_pass_rate if quality else None,
         "agent_failure_rate": quality.agent_failure_rate if quality else None,
-        "cost_mean_usd": agent.cost_mean_usd if agent else None,
+        # List price from token counts, so response-cache hits do not lower it.
+        "cost_mean_usd": list_cost_mean
+        if list_cost_mean is not None
+        else (agent.cost_mean_usd if agent else None),
         "judge_pass_rate": None,
     }
 
