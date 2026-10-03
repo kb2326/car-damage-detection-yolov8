@@ -1,0 +1,20 @@
+# The LLM triage agent (spec docs/specs/2026-10-02-m5a-triage-agent-design.md).
+version = "triage-agent-v1"
+tier = "strong"            # a tier from config/llm.toml
+prompt = "triage/v1"       # prompts/triage/v1.md
+profile = "triage"         # a profile from config/agents.toml
+
+# Read-only tools only. The agent advises; it never writes, re-runs models or pays.
+tools = [
+  "get_policy",
+  "get_coverage",
+  "search_policy_clauses",
+  "get_claim_history",
+  "find_similar_claims",
+]
+
+[limits]
+max_steps = 6       # model calls per claim
+max_seconds = 90    # wall clock per claim
+max_tokens = 700    # output tokens per model call
+max_repairs = 1     # rejected answers or missing answers the model may correct
