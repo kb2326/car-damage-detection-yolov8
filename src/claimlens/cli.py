@@ -64,6 +64,7 @@ from claimlens.review.decisions import (
     read_review,
     write_review,
 )
+from claimlens.tracing import setup_tracing, shutdown_tracing
 from claimlens.training.commands import (
     ExporterFactory,
     SegmenterFactory,
@@ -363,10 +364,11 @@ def main(
     args = build_parser().parse_args(argv)
     if args.command == "knowledge":
         return run_knowledge_command(args, embedder_factory=embedder_factory)
-    if args.command == "judge":
-        return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
-    args.agent_factory = agent_factory
+    setup_tracing()  # does nothing unless CLAIMLENS_TRACING=1
     try:
+        if args.command == "judge":
+            return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
+        args.agent_factory = agent_factory
         return _dispatch(
             args, detector_factory, labeller_factory, trainer_factory, segmenter_factory, exporter
         )
@@ -376,6 +378,8 @@ def main(
     except AgentUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    finally:
+        shutdown_tracing()
 
 
 class DetectorUnavailableError(RuntimeError):

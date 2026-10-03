@@ -14,7 +14,7 @@ jobs:
         with:
           enable-cache: true
       - name: Install
-        run: uv sync --locked --group training --group knowledge --group agent
+        run: uv sync --locked --group training --group knowledge --group agent --group tracing
       - name: Lint
         run: uv run ruff check .
       - name: Format check

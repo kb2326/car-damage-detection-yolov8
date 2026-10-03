@@ -113,8 +113,14 @@ def build_graph(
 
 
 def run_graph(
-    graph: Any, system: str, evidence: str, config: AgentConfig, clock: Callable[[], float]
+    graph: Any,
+    system: str,
+    evidence: str,
+    config: AgentConfig,
+    clock: Callable[[], float],
+    tags: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
+    """Run the graph; `tags` become run metadata (the claim id and versions on a trace)."""
     start: TriageState = {
         "messages": [SystemMessage(system), HumanMessage(evidence)],
         "steps": 0,
@@ -124,7 +130,14 @@ def run_graph(
     }
     try:
         # Backstop only: each step is at most agent + tools/nudge/finalize.
-        out = graph.invoke(start, config={"recursion_limit": 3 * config.max_steps + 6})
+        out = graph.invoke(
+            start,
+            config={
+                "recursion_limit": 3 * config.max_steps + 6,
+                "run_name": "triage",
+                "metadata": dict(tags or {}),
+            },
+        )
     except GraphRecursionError:
         raise AgentFailed("graph recursion limit reached") from None
     recommendation: dict[str, Any] = out["recommendation"]
