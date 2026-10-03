@@ -17,12 +17,20 @@ be approved for a claim no person had looked at.
   `request_info` (keeps the claim in the queue).
 - **Deny exists only here.** No model, agent or rule can produce it, so "the system never
   auto-denies" is now enforced by the data model, not only by convention.
+- **The effective route:** a reviewer's `override` replaces the rules' route for everything that
+  follows; otherwise the rules' route stands.
 - **One payment rule, `payable(state)`,** used by both `claimlens approve-payment` and the MCP
   `issue_payment` tool:
-  - a fast-tracked claim can be paid unless a reviewer denied it;
-  - a claim on `ADJUSTER_REVIEW` waits for an `approve` or `override`;
-  - a claim on `FRAUD_REVIEW` is never paid through this path, whatever the review says;
-  - a denied claim is never paid.
+  - a claim whose rules' route **or** effective route is `FRAUD_REVIEW` is never paid through this
+    path, so an override cannot turn a fraud referral into a payout, and an adjuster's escalation
+    to fraud stops one;
+  - a denied claim is never paid, and a `request_info` review holds payment;
+  - otherwise a claim is paid when its effective route is `FAST_TRACK`, or when a reviewer
+    approved it.
+- **The queue** lists claims whose effective route needs a person (`ADJUSTER_REVIEW` or
+  `FRAUD_REVIEW`) until a reviewer approves or denies them; an override into a review route keeps
+  the claim in the queue. (The first version let an override to `FRAUD_REVIEW` unlock payment;
+  the M5b review caught it.)
 - **Command line:** `claimlens queue [--route R]` lists waiting claims, oldest first, with the
   rule, the agent's rationale, its citations and its open questions.
   `claimlens review-claim <id> --approve | --override R | --deny | --request-info --reviewer NAME
