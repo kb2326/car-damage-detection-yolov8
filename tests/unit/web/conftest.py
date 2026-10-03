@@ -14,18 +14,22 @@ from tests.unit.web.helpers import deps
 
 
 @pytest.fixture
-def services(tmp_path: Path) -> WebServices:
+def services(tmp_path: Path) -> Iterator[WebServices]:
+    """The pipeline runs inline (it opens its own store per claim); the intake chat runs on a
+    real dedicated thread, as in production, because its LLM gateway holds SQLite connections."""
     db = tmp_path / "events.db"
     process = pipeline_processor(db, lambda store: deps(tmp_path, store))
-    return WebServices(
+    intake_worker = Worker("intake")
+    yield WebServices(
         db_path=db,
         blobs=BlobStore(tmp_path / "blobs"),  # the same folder deps() uses
         settings=WebSettings(max_upload_mb=1),
         runner=ClaimRunner(Worker("claims", inline=True), process),
-        intake_worker=Worker("intake", inline=True),
+        intake_worker=intake_worker,
         intake=None,
         upload_dir=tmp_path / "uploads",
     )
+    intake_worker.shutdown()
 
 
 @pytest.fixture
