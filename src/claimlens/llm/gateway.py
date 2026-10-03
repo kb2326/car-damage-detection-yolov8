@@ -32,6 +32,7 @@ from claimlens.llm.types import (
     LLMResponse,
     LLMUnavailable,
     Message,
+    ToolSpec,
 )
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
@@ -92,14 +93,22 @@ class Gateway:
         self._clock = clock
 
     def _call(
-        self, models: list[str], system: str, messages: list[Message], max_tokens: int
+        self,
+        models: list[str],
+        system: str,
+        messages: list[Message],
+        max_tokens: int,
+        tools: tuple[ToolSpec, ...] = (),
+        tool_choice: str | None = None,
     ) -> tuple[str, ProviderReply, int]:
         attempts = 0
         for model in models:
             for attempt in range(self._config.limits.attempts_per_model):
                 attempts += 1
                 try:
-                    reply = self._provider.complete(model, system, messages, max_tokens)
+                    reply = self._provider.complete(
+                        model, system, messages, max_tokens, tools, tool_choice
+                    )
                 except ProviderTransientError:
                     if attempt + 1 < self._config.limits.attempts_per_model:
                         self._sleep(self._config.limits.backoff_seconds * 2**attempt)
@@ -126,7 +135,13 @@ class Gateway:
         except ValueError as exc:
             raise LLMError(str(exc)) from None
         prompt_sha = hashlib.sha256(
-            json.dumps([system, [m.model_dump() for m in request.messages]]).encode()
+            json.dumps(
+                [
+                    system,
+                    [m.model_dump() for m in request.messages],
+                    [t.model_dump() for t in request.tools],
+                ]
+            ).encode()
         ).hexdigest()
 
         def record(
@@ -150,7 +165,13 @@ class Gateway:
             )
 
         key = self._cache.key(
-            models[0], system, request.messages, schema.__name__ if schema else None, max_tokens
+            models[0],
+            system,
+            request.messages,
+            schema.__name__ if schema else None,
+            max_tokens,
+            request.tools,
+            request.tool_choice,
         )
         hit = self._cache.get(key)
         if hit is not None:
@@ -166,10 +187,15 @@ class Gateway:
                 cached=True,
                 latency_ms=int((self._clock() - started) * 1000),
                 attempts=0,
+                tool_calls=hit.tool_calls,
             )
 
         # Refuse before spending: the worst case is a full-length reply to this prompt.
-        prompt_chars = len(system) + sum(len(m.content) for m in request.messages)
+        prompt_chars = (
+            len(system)
+            + sum(len(m.model_dump_json()) for m in request.messages)
+            + sum(len(t.model_dump_json()) for t in request.tools)
+        )
         worst_case = self._config.cost(models[0], prompt_chars // _CHARS_PER_TOKEN + 1, max_tokens)
         self._budget.check(request.claim_id, worst_case)
 
@@ -186,7 +212,9 @@ class Gateway:
             return LLMUnavailable(failure.detail)
 
         try:
-            model, reply, attempts = self._call(models, system, messages, max_tokens)
+            model, reply, attempts = self._call(
+                models, system, messages, max_tokens, request.tools, request.tool_choice
+            )
         except _FailedError as failure:
             raise fail(failure) from None
         tin, tout = reply.input_tokens, reply.output_tokens
@@ -224,7 +252,14 @@ class Gateway:
                     raise InvalidModelOutput("model output failed validation twice") from None
         self._budget.charge(request.claim_id, cost)
         self._cache.put(
-            key, CachedReply(text=text, model=model, input_tokens=tin, output_tokens=tout)
+            key,
+            CachedReply(
+                text=text,
+                model=model,
+                input_tokens=tin,
+                output_tokens=tout,
+                tool_calls=reply.tool_calls,
+            ),
         )
         record("ok", model, tin, tout, cost, False, attempts)
         return LLMResponse(
@@ -237,4 +272,5 @@ class Gateway:
             cached=False,
             latency_ms=int((self._clock() - started) * 1000),
             attempts=attempts,
+            tool_calls=reply.tool_calls,
         )

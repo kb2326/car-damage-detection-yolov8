@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from claimlens.domain import Frozen
-from claimlens.llm.types import Message
+from claimlens.llm.types import Message, ToolCall, ToolSpec
 
 _SCHEMA = "CREATE TABLE IF NOT EXISTS replies (key TEXT PRIMARY KEY, body TEXT NOT NULL)"
 
@@ -19,6 +19,7 @@ class CachedReply(Frozen):
     model: str
     input_tokens: int
     output_tokens: int
+    tool_calls: tuple[ToolCall, ...] = ()
 
 
 class ResponseCache:
@@ -34,9 +35,19 @@ class ResponseCache:
         messages: Sequence[Message],
         schema_name: str | None,
         max_tokens: int,
+        tools: Sequence[ToolSpec] = (),
+        tool_choice: str | None = None,
     ) -> str:
         payload = json.dumps(
-            [model, system, [m.model_dump() for m in messages], schema_name, max_tokens],
+            [
+                model,
+                system,
+                [m.model_dump() for m in messages],
+                schema_name,
+                max_tokens,
+                [t.model_dump() for t in tools],
+                tool_choice,
+            ],
             sort_keys=True,
         )
         return hashlib.sha256(payload.encode()).hexdigest()
