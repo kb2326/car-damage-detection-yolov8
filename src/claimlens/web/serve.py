@@ -83,10 +83,26 @@ def _intake_factory(
             raise RuntimeError("the web app files claims through its own submit")
 
         return build_intake(
-            args.config, Path.cwd(), Path("var/intake.sqlite"), unused, submit=submit
+            args.config,
+            Path.cwd(),
+            Path("var/intake.sqlite"),
+            unused,
+            gateway=intake_gateway(args),
+            submit=submit,
         )
 
     return build
+
+
+def intake_gateway(args: argparse.Namespace) -> Any:
+    """A gateway with the owner's daily cap (`--llm-daily-cap`), or None for the configured one.
+    The triage agent reads the same option (cli._llm_agent)."""
+    cap = getattr(args, "llm_daily_cap", None)
+    if cap is None:
+        return None
+    from claimlens.llm.factory import build_gateway
+
+    return build_gateway(args.config, Path.cwd(), per_day_usd=cap)
 
 
 def seed_claims(services: WebServices, photos: Sequence[Path]) -> list[UUID]:

@@ -75,3 +75,23 @@ def test_seed_files_three_claims_and_the_reused_photo_is_flagged(tmp_path: Path)
     assert routes[2] == "FRAUD_REVIEW"  # the third reuses the first photo
     assert "FRAUD_REVIEW" not in routes[:2]
     assert None not in routes
+
+
+def test_the_daily_cap_option_reaches_the_intake_gateway(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from claimlens.cli import build_parser
+    from claimlens.web import serve
+
+    seen: dict[str, Any] = {}
+
+    def fake_gateway(config_dir: Path, repo_root: Path, **kwargs: Any) -> str:
+        seen.update(kwargs)
+        return "gateway"
+
+    monkeypatch.setattr("claimlens.llm.factory.build_gateway", fake_gateway)
+    args = build_parser().parse_args(["serve", "--llm-daily-cap", "3"])
+    assert args.llm_daily_cap == 3.0
+    assert serve.intake_gateway(args) == "gateway"
+    assert seen["per_day_usd"] == 3.0
+    assert serve.intake_gateway(build_parser().parse_args(["serve"])) is None

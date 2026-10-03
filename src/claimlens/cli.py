@@ -273,6 +273,9 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--seed", action="store_true", help="file three sample claims at start")
     serve.add_argument("--stub-agent", action="store_true", help="use the rule-based stub agent")
     serve.add_argument("--no-memory", action="store_true", help="do not use the claim memory")
+    serve.add_argument(
+        "--llm-daily-cap", type=float, default=None, help="override the daily LLM cap in USD"
+    )
     run = sub.add_parser("run", help="submit a claim and process it")
     run.add_argument("--policy", required=True, help="policy number, e.g. P-1001")
     run.add_argument("--description", default="", help="what happened")
