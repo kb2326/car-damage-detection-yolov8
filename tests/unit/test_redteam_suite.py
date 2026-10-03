@@ -100,3 +100,18 @@ def test_a_broken_attack_fails_the_command(tmp_path: Path, monkeypatch: pytest.M
         lambda attacks, root: {a.id: ("broken" if a.id == "RT-01" else "held") for a in attacks},
     )
     assert cli.main(["eval-redteam", "--report", str(tmp_path / "r.md")]) == 1
+
+
+def test_the_live_injection_set_is_well_formed() -> None:
+    import json
+
+    from claimlens.evals.golden import GoldenClaim
+
+    path = ROOT / "evals" / "redteam" / "injections.jsonl"
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    assert len(rows) == 15
+    assert {r["expected_route"] for r in rows} <= {"ADJUSTER_REVIEW", "FRAUD_REVIEW"}
+    styles = {r["notes"].removeprefix("red-team injection: ") for r in rows}
+    assert len(styles) == 5
+    for row in rows:
+        GoldenClaim.model_validate(row)
