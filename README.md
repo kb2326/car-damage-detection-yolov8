@@ -4,9 +4,10 @@
 for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
 of every consequential decision.
 
-> Status: **M0–M6 complete** (foundations, walking skeleton, data engine, vision models, tools,
-> the LLM triage agent and its evaluation, the intake agent and memory). Next: **M7, trust and
-> governance.** This repository started as a STAT 5350 course project (a YOLOv8 car-damage
+> Status: **M0–M6 and M8a complete** (foundations, walking skeleton, data engine, vision models,
+> tools, the LLM triage agent and its evaluation, the intake agent and memory, and a local web
+> prototype). Next: **a trimmed M7** (red-team suite, near-copy fraud rule, system card), then the
+> public demo (M8b). This repository started as a STAT 5350 course project (a YOLOv8 car-damage
 > detector). See [`legacy/README.md`](legacy/README.md) for the original code and the audit that
 > motivated the rebuild.
 
@@ -188,6 +189,7 @@ src/claimlens/      Python package
   memory/           claim memory: records, LanceDB index, near-copy photos, writer
   agent/            LangGraph triage agent: chat model on the gateway, MCP tools adapter, checks
   evals/            golden sets, triage eval, agent metrics, LLM judge, scorecard and gate
+  web/              local web prototype: FastAPI app, pages, chat and review API
 config/             rules, rate card, taxonomy, training runs, agent profiles, LLM tiers
 knowledge/policies/ fictional policy wordings (basic, standard, premium)
 prompts/            versioned prompt files
@@ -195,7 +197,7 @@ tests/              unit and integration tests, fixtures
 training/           Kaggle GPU jobs
 evals/              golden claims, policy-search questions, evaluation reports
 reviews/            label review decisions, versioned as data
-docs/               PR/FAQ, specs, plans, ADRs 0001-0017, data card, model card, retros
+docs/               PR/FAQ, specs, plans, ADRs 0001-0018, data card, model card, retros
 data/               datasets — versioned with DVC, not git (see data/README.md)
 models/             model weights — private, not in git (see models/README.md)
 legacy/             the original course project, frozen for comparison
@@ -260,6 +262,27 @@ without them.
 **LLM calls** go through the gateway and need `ANTHROPIC_API_KEY` in a git-ignored `.env`. The
 test suite never calls the API unless you set `CLAIMLENS_LIVE=1`.
 
+## Run the web prototype
+
+A local web app over the whole flow (ADR 0018). It runs on your machine only (`127.0.0.1`).
+
+```bash
+uv sync --group web --group agent --group knowledge --group vision
+uv run claimlens serve --seed            # http://127.0.0.1:8000
+uv run claimlens serve --stub-agent --no-memory --seed   # free: no LLM calls for triage
+```
+
+| Screen | What you do |
+|---|---|
+| **File a claim** (`/`) | Chat with the intake agent and upload three photos; you get a claim reference |
+| **Claims** (`/claims`) | Every claim with its status, route and rule; filters for "needs review" and "fraud review" |
+| **Claim** (`/claims/<id>`) | Watch the stages finish, see the damage boxes on the photos, the evidence, the agent's reasoning and cited clauses, similar claims, the route and rule, and the verified audit log |
+| **Review** (on the claim page) | Approve, ask for information, change the route or deny (only a person can deny) |
+
+The API is documented at `http://127.0.0.1:8000/docs`. `--seed` files three sample claims; the
+third reuses the first photo, so rule R1 sends it to fraud review. The chat uses Claude Haiku
+(about $0.05 a claim) and the triage agent Claude Sonnet (about $0.01), within the gateway's caps.
+
 ## Use ClaimLens from Claude Code (MCP)
 
 ClaimLens runs as four MCP tool servers (ADR 0010). Each one shows and accepts only the tools its
@@ -298,8 +321,9 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 | M4 ✅ | Tools & integration: MCP servers with scopes, LLM gateway, policy search with citations |
 | M5 ✅ | Triage agent: LangGraph agent, human review queue, golden v2, LLM judge, CI eval gate, tracing |
 | M6 ✅ | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
-| M7 (next) | Trust & governance: OWASP agentic threat model, red-team, fraud, PII, AIS program |
-| M8 | Ship: ONNX, Docker, public demo, monitoring |
+| M8a ✅ | Local web prototype: FastAPI, chat, claim page, review queue |
+| M7 (next, trimmed) | Trust: red-team suite (OWASP agentic top 10), near-copy photos as a fraud rule, system card |
+| M8b | Ship: Docker, public demo, monitoring, write-up |
 
 Full design: [`docs/specs/2026-10-01-claimlens-design.md`](docs/specs/2026-10-01-claimlens-design.md).
 

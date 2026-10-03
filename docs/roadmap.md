@@ -186,21 +186,37 @@ something that already works.*
 - [x] Three Agent Skills (`SKILL.md`), approved by you; loaded on 86 of 150 golden claims; harmless stories fast-tracked 5 of 10 (was 3)
 - [x] Simulated customers with pass^k: pass^4 0.80 (target 0.70); weak spot: corrected dates
 
-## M7 · Trust & governance (Dec 25 – Jan 4)
+## Plan change (2026-10-03)
+
+The owner moved a local prototype ahead of the trust work, and trimmed M7 to what matters for a
+public demo. Order now: **M8a → trimmed M7 → M8b**. Nothing goes public before the trimmed M7.
+
+## M8a · Local web prototype (done)
+
+*See the whole flow in a browser.*
+
+- [x] FastAPI app with a typed API at `/docs` (ADR 0018)
+- [x] Customer chat with photo upload; claim reference at hand-over
+- [x] Claims list with filters; claim page with stage timeline, damage boxes, evidence, agent reasoning, similar claims, verified audit log
+- [x] Review form: approve, ask for information, change the route, deny (people only)
+- [x] `claimlens serve` (local only), `--seed`, `--stub-agent`, `--no-memory`; a Playwright browser test
+- [ ] A full live run and a README screenshot (waiting for the daily LLM cap to reset)
+
+## M7 · Trust (trimmed, next)
 
 *Try to break the system before others do.*
 
-- [ ] Fraud checks: photo reuse, metadata, AI-generated image score, story vs photo
-- [ ] Blur faces and licence plates
-- [ ] Red-team test suite mapped to the OWASP agentic top 10
-- [ ] AIS Program document and system card
+- [ ] Red-team test suite mapped to the OWASP agentic top 10, in CI: 0 successful hijacks
+- [ ] Near-copy photos (memory) as a fraud signal for rule R1
+- [ ] A short system card
+- Dropped for now (future work): AIS programme document, EXIF and AI-image checks, a story-versus-photo code check; face and plate blurring only if the public demo shows photos
 
-## M8 · Ship (Jan 5–15)
+## M8b · Ship
 
 *Put it in front of people.*
 
-- [ ] Docker image and FastAPI service
-- [ ] Public Gradio demo on Hugging Face Spaces
+- [ ] Docker image; the FastAPI app as the public API, with sign-in
+- [ ] Public demo
 - [ ] Drift monitoring (Evidently)
 - [ ] Final write-up, demo video, the single LinkedIn post
 - [ ] Stretch: A2A repair-shop partner agent, adjuster copilot
