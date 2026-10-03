@@ -10,8 +10,9 @@ LLM agent reasons over the evidence and the policy wording, and fixed rules deci
 person approves every payout, and only a person can deny a claim.
 
 **See it:** [the live read-only showcase](https://huggingface.co/spaces/kb2606/claimlens) (five
-sample claims and a recorded chat) · **Read:** [system card](docs/system-card.md) ·
-[model card](docs/model-card.md) · [design](docs/specs/2026-10-01-claimlens-design.md)
+sample claims and a recorded chat) · **Read:** [the story on Medium](https://medium.com/@karthickbalaje01/i-built-an-ai-system-for-insurance-claims-where-the-ai-isnt-allowed-to-deny-you-9188ecdada8e) ·
+[system card](docs/system-card.md) · [model card](docs/model-card.md) ·
+[design](docs/specs/2026-10-01-claimlens-design.md)
 
 > **Status: complete (M0–M8).** Data engine, our own vision models, MCP tools, the LLM triage and
 > intake agents with evaluations, memory and skills, a web app, a red-team suite, a system card,
