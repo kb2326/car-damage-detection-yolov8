@@ -93,7 +93,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 @keyframes pulse { to { opacity: .35; } }
 .grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; }
 @media (max-width: 800px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-.photos { display: grid; gap: 16px; }
+.photos { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .photo { margin: 0; }
 .frame { position: relative; line-height: 0; }
 .frame img { width: 100%; height: auto; border-radius: 6px; }
