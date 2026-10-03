@@ -76,6 +76,11 @@ What had to stay true whatever the framework:
   ratio capped and checked, damage types restricted to plausible parts) is the way to win the
   fast-tracks back, not a less careful prompt. M5b's narrative cases and the LLM judge measure
   what the agent adds.
+- **After the fusion fix (ADR 0009 update, 2026-10-03)** the impossible output is gone, but the
+  agent still holds back the same 8 claims (0.70, 1.00, 1 of 30, $0.85), now for vague stories,
+  a flat tyre that could be a puncture, or glass a low-speed knock rarely shatters. So the gap is
+  the agent's caution, not a defect; M5b's benign cases and the judge measure whether it is too
+  cautious before the prompt is changed.
 - **Cost is well under the cap:** $0.009 per claim on average ($0.013 at most), 2.0 model calls
   and 0.7 tool calls per claim, no agent failures. Prompt caching cuts the second call's input
   cost.

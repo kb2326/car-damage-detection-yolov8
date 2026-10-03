@@ -58,3 +58,24 @@ The owner approved the recommended threshold. `config/decision_policy.toml` is n
 route accuracy 0.78, escalation recall 1.00, 9 of 30 correct fast-tracks
 (`evals/reports/2026-10-02-triage-baseline-v1-fused-r6-065.md`). This trades two fast-tracks for
 findings that are correct at least 80% of the time on validation.
+
+## Update (2026-10-03): plausible parts and a capped part ratio
+
+The M5a triage agent found impossible fusion output on golden v1: a flat tyre "on the front
+bumper", glass "on the hood", and damage covering 108% to 298% of a part. Two causes, both fixed:
+
+- **The ratio** was damage area / part area, even when only part of the damage overlapped the
+  part. It is now **overlap / part area**, the share of the part the damage covers, never above 1.
+- **Any damage type could go to any part.** `config/taxonomy.toml` `[part_groups.damage_parts]`
+  now limits three types: a flat tyre only to a wheel, a broken lamp only to a light, glass shatter
+  to glass, a light or a mirror. Dents, scratches, cracks and smashes can be on any part. With no
+  plausible part the finding has no part, and pricing uses the box share as before.
+
+Golden v1 with the fused detector and the stub agent is unchanged: route accuracy 0.78,
+escalation recall 1.00, 9 of 30 fast-tracks
+(`evals/reports/2026-10-03-triage-baseline-v1-fused-fusionfix.md`). Two claims move from R5 to R6
+because their estimates fell. With the LLM agent: 0.70, 1.00, 1 of 30, $0.85
+(`evals/reports/2026-10-03-triage-agent-v1-golden-v1-fusionfix.md`). The agent no longer reports
+impossible output, but it still holds back the same claims for vague stories, a flat tyre that
+could be a puncture, or glass that a low-speed knock rarely shatters. That is the agent's
+calibration, which M5b measures.
