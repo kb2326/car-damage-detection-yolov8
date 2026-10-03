@@ -76,3 +76,46 @@ def test_a_second_start_while_running_is_refused() -> None:
     worker.call(lambda: None)  # wait for the queued run to finish
     assert not runner.running(claim)
     worker.shutdown()
+
+
+def test_similar_claims_come_from_memory(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from claimlens.blobs import BlobStore
+    from claimlens.events.projection import fold
+    from claimlens.knowledge.embed import FakeEmbedder
+    from claimlens.memory.index import ClaimMemory
+    from claimlens.web.services import WebServices
+    from claimlens.web.settings import WebSettings
+    from claimlens.workflow import process_claim
+
+    memory = ClaimMemory(tmp_path / "memory", FakeEmbedder())
+    db = tmp_path / "events.db"
+    store = SQLiteEventStore(db)
+    d = replace(deps(tmp_path, store), memory=memory)
+    claims = []
+    for n in range(2):
+        claim = submit_claim(
+            store,
+            d.blobs,
+            policy_id="P-1001",
+            description="x",
+            photo_paths=[image(tmp_path / f"{n}.png", (40 * n, 90, 120))],
+        )
+        process_claim(claim, d)
+        claims.append(claim)
+    services = WebServices(
+        db_path=db,
+        blobs=BlobStore(tmp_path / "blobs"),
+        settings=WebSettings(),
+        runner=ClaimRunner(Worker("c", inline=True), lambda c: None),
+        intake_worker=Worker("i", inline=True),
+        intake=None,
+        upload_dir=tmp_path / "u",
+        memory=memory,
+    )
+    events = store.load(claims[1])
+    similar = services.similar(fold(events), events)
+    store.close()
+    assert [s.claim_id for s in similar] == [str(claims[0])]
+    assert similar[0].reason == "near-copy photo"  # one-colour photos share a perceptual hash

@@ -267,6 +267,12 @@ def build_parser() -> argparse.ArgumentParser:
     decide.add_argument("--reviewer", required=True, help="your name, recorded on the claim")
     decide.add_argument("--note", default="", help="required for --override and --deny")
 
+    serve = sub.add_parser("serve", help="run the local web prototype on http://127.0.0.1:8000")
+    serve.add_argument("--host", default=None, help="local only: 127.0.0.1 (default) or localhost")
+    serve.add_argument("--port", type=int, default=None)
+    serve.add_argument("--seed", action="store_true", help="file three sample claims at start")
+    serve.add_argument("--stub-agent", action="store_true", help="use the rule-based stub agent")
+    serve.add_argument("--no-memory", action="store_true", help="do not use the claim memory")
     run = sub.add_parser("run", help="submit a claim and process it")
     run.add_argument("--policy", required=True, help="policy number, e.g. P-1001")
     run.add_argument("--description", default="", help="what happened")
@@ -416,6 +422,10 @@ def main(
             return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
         args.agent_factory = agent_factory
         args.embedder_factory = embedder_factory
+        if args.command == "serve":
+            from claimlens.web.serve import run_serve
+
+            return run_serve(args, detector_factory)
         if args.command == "intake":
 
             def pipeline(a: argparse.Namespace) -> PipelineDeps:
