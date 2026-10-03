@@ -49,11 +49,19 @@ class SQLiteEventStore:
         *,
         clock: Callable[[], datetime] = utc_now,
         new_id: Callable[[], UUID] = uuid4,
+        read_only: bool = False,
     ) -> None:
-        if isinstance(path, Path):
-            path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path), isolation_level=None)
-        self._conn.execute(_SCHEMA)
+        """`read_only` opens an existing store that can never be written (the public showcase)."""
+        if read_only:
+            if not Path(path).is_file():
+                raise FileNotFoundError(f"no event store at {path}")
+            uri = f"{Path(path).resolve().as_uri()}?mode=ro"
+            self._conn = sqlite3.connect(uri, uri=True, isolation_level=None)
+        else:
+            if isinstance(path, Path):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(str(path), isolation_level=None)
+            self._conn.execute(_SCHEMA)
         self._clock = clock
         self._new_id = new_id
 
