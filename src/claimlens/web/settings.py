@@ -23,7 +23,7 @@ class WebSettings(Frozen):
 
 def load_web_settings(path: Path) -> WebSettings:
     """From config/web.toml; CLAIMLENS_ALLOWED_HOSTS (comma-separated) replaces the host list,
-    for the public showcase's address."""
+    for example the public showcase's address (it applies to any mode)."""
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     hosts = os.environ.get("CLAIMLENS_ALLOWED_HOSTS", "")
     if hosts.strip():

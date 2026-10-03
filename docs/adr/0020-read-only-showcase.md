@@ -26,7 +26,7 @@ strangers' LLM spend, the CarDD-trained weights on a public server, and abuse ha
 - **Recorded sample claims** (`showcase/`, 1.8 MB, committed), built once by
   `scripts/build_showcase.py` with the real fused vision models and LLM agents:
   - photos: Wikimedia Commons images of damaged cars under CC BY / CC BY-SA, credited in
-    `showcase/CREDITS.md`, none with a readable number plate. `car-seg` photos were screened first
+    `showcase/CREDITS.md`, readable number plates blurred. `car-seg` photos were screened first
     but show undamaged cars, so they would only have shown the model's weak false positives;
   - five claims: a shattered mirror (the glass procedure; the agent questioned a high estimate,
     R8), a junction crash (a weak finding, R6), a heavy front crash (over $3,000, R5), a re-saved

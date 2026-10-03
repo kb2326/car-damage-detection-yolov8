@@ -20,4 +20,5 @@ jobs:
       - name: Deploy
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: uv run --no-project --with "huggingface_hub>=0.34" python scripts/deploy_space.py "${{ vars.HF_SPACE }}"
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: uv run --no-project --with "huggingface_hub==0.35.3" python scripts/deploy_space.py "$HF_SPACE"

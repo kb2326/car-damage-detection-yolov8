@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "showcase"
@@ -34,6 +34,8 @@ PHOTOS = {
     "van-1": "File:20171118 damaged Hyundai Grand starex-1.jpg",
     "van-2": "File:20171118 damaged Hyundai Grand starex-2.jpg",
 }
+# Number plates readable in the photos, blurred before use (left, top, right, bottom) at 1280 px.
+PLATES = {"van-1": (40, 560, 112, 636), "van-2": (1032, 576, 1164, 674)}
 CUSTOMER = {
     "policy": "P-1001",
     "story": "Bricks from a damaged wall fell onto my parked van and dented the roof and bonnet.",
@@ -141,6 +143,12 @@ def build(cap: float) -> None:
     # A re-saved copy of the mirror photo: what a fraudster sends with a second claim.
     with Image.open(photos / "mirror.jpg") as image:
         image.convert("RGB").save(photos / "mirror-resaved.jpg", "JPEG", quality=60)
+    for key, box in PLATES.items():  # privacy: no readable number plate is published
+        path = photos / f"{key}.jpg"
+        with Image.open(path) as source:
+            image = source.convert("RGB")
+        image.paste(image.crop(box).filter(ImageFilter.GaussianBlur(14)), box[:2])
+        image.save(path, "JPEG", quality=92)
     for file in photos.iterdir():  # blobs are named by content hash: remember which is which
         _HASHES[hashlib.sha256(file.read_bytes()).hexdigest()] = file.stem
 
@@ -259,9 +267,9 @@ def _write_credits(credits: dict[str, Any], blobs: Any) -> None:
     lines = [
         "# Showcase photo credits",
         "",
-        "Photos of damaged cars from Wikimedia Commons, used under their licences. The showcase",
-        "shows them unchanged; the damage boxes are drawn by the page on top. Each blob is named",
-        "by the SHA-256 of its bytes.",
+        "Photos of damaged cars from Wikimedia Commons, used under their licences. Each is",
+        "Wikimedia's 1280-px-wide version of the original; changes are noted per photo. The damage",
+        "boxes are drawn by the page on top. Each blob is named by the SHA-256 of its bytes.",
         "",
         "| Blob | Photo | Author | Licence | Source |",
         "|---|---|---|---|---|",
@@ -270,6 +278,8 @@ def _write_credits(credits: dict[str, Any], blobs: Any) -> None:
         key = _key_for(blob)
         c = credits["mirror"] if key == "mirror-resaved" else credits[key]
         note = " (re-saved as a lower-quality JPEG)" if key == "mirror-resaved" else ""
+        if key in PLATES:
+            note = " (number plate blurred)"
         lines.append(
             f"| `{blob}` | {c['title']}{note} | {c['author']} | "
             f"[{c['license']}]({c['license_url']}) | {c['page']} |"

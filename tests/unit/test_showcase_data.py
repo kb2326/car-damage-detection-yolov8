@@ -42,3 +42,19 @@ def test_the_transcript_is_a_plain_chat() -> None:
     assert len(transcript) >= 6
     assert {turn["role"] for turn in transcript} == {"agent", "customer"}
     assert all(set(turn) == {"role", "text"} for turn in transcript)
+
+
+def test_each_blob_is_named_by_its_content_hash() -> None:
+    import hashlib
+
+    for blob in (DATA / "blobs").iterdir():
+        assert hashlib.sha256(blob.read_bytes()).hexdigest() == blob.name.split(".")[0]
+
+
+def test_changes_to_the_photos_are_stated_in_the_credits() -> None:
+    credits = (DATA / "CREDITS.md").read_text(encoding="utf-8")
+    assert "unchanged" not in credits
+    assert "1280" in credits  # Wikimedia's 1280-px versions
+    van_rows = [line for line in credits.splitlines() if "Grand starex" in line]
+    assert len(van_rows) == 2
+    assert all("number plate blurred" in row for row in van_rows)

@@ -108,7 +108,8 @@ Reports: `evals/reports/` (golden v2, simulated customers, red team, live red te
 - Secrets live only in a git-ignored `.env`. The event log stores facts and a fingerprint of the
   chat transcript, not the transcript.
 - CarDD images and the trained weights are never redistributed. Published images use only
-  CC BY 4.0 `car-seg` photos, credited.
+  openly licensed photos, credited: CC BY 4.0 `car-seg` images in the README and Wikimedia
+  Commons CC BY / CC BY-SA images in the showcase (number plates blurred).
 - The public demo is a read-only showcase (ADR 0020): five recorded sample claims built from
   Wikimedia Commons photos (CC BY / CC BY-SA, credited), no visitor input, no LLM calls, no
   weights or keys in the image.

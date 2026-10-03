@@ -40,7 +40,7 @@ pre-recorded sample claims, with links to the repository, the system card and th
 
 `scripts/build_showcase.py` (run once on the owner's machine with the real models and agents, about
 $0.15) builds `showcase/` from openly licensed Wikimedia Commons photos of genuinely damaged cars
-(CC BY / CC BY-SA, credited; none with a readable number plate). `car-seg` photos show undamaged
+(CC BY / CC BY-SA, credited; readable number plates blurred). `car-seg` photos show undamaged
 cars, which would only demonstrate the model's weak false positives.
 1. a shattered side mirror (glass): the clean case, expected fast-track with the glass procedure;
 2. a front-end collision with some weak findings: a person reviews (R6);

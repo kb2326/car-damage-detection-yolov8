@@ -212,7 +212,7 @@ public demo. Order now: **M8a → trimmed M7 → M8b**. Nothing goes public befo
 - [x] [System card](system-card.md)
 - Dropped for now (future work): AIS programme document, EXIF and AI-image checks, a story-versus-photo code check
 
-## M8b · Ship (done)
+## M8b · Ship (done; live once the owner runs the deploy)
 
 *Put it in front of people.*
 

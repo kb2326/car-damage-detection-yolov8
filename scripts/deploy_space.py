@@ -18,7 +18,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ("Dockerfile", ".dockerignore", "pyproject.toml", "uv.lock", "LICENSE")
 FOLDERS = ("src", "config", "showcase")
-IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc")
+# Never staged, even if present in the working tree: secrets and SQLite side files.
+IGNORE = shutil.ignore_patterns(
+    "__pycache__", "*.pyc", ".env*", "*-journal", "*.db-wal", "*.db-shm"
+)
 
 
 def stage(root: Path, out: Path) -> None:
