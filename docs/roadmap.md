@@ -202,14 +202,15 @@ public demo. Order now: **M8a → trimmed M7 → M8b**. Nothing goes public befo
 - [x] `claimlens serve` (local only), `--seed`, `--stub-agent`, `--no-memory`; a Playwright browser test
 - [x] A full live run (chat → decision → review, `Chain OK`) and a README screenshot
 
-## M7 · Trust (trimmed, next)
+## M7 · Trust (trimmed, done)
 
 *Try to break the system before others do.*
 
-- [ ] Red-team test suite mapped to the OWASP agentic top 10, in CI: 0 successful hijacks
-- [ ] Near-copy photos (memory) as a fraud signal for rule R1
-- [ ] A short system card
-- Dropped for now (future work): AIS programme document, EXIF and AI-image checks, a story-versus-photo code check; face and plate blurring only if the public demo shows photos
+- [x] Red-team suite: 33 attacks mapped to the OWASP agentic top 10, hijacked-model mode in CI (33 of 33 held); live run on the real agent (15 of 15 to a person) (ADR 0019)
+- [x] Dependency audit (`pip-audit`) in CI
+- [x] Near-copy photos (memory) as a fraud signal for rule R1
+- [x] [System card](system-card.md)
+- Dropped for now (future work): AIS programme document, EXIF and AI-image checks, a story-versus-photo code check
 
 ## M8b · Ship
 

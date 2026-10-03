@@ -4,10 +4,10 @@
 for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
 of every consequential decision.
 
-> Status: **M0–M6 and M8a complete** (foundations, walking skeleton, data engine, vision models,
-> tools, the LLM triage agent and its evaluation, the intake agent and memory, and a local web
-> prototype). Next: **a trimmed M7** (red-team suite, near-copy fraud rule, system card), then the
-> public demo (M8b). This repository started as a STAT 5350 course project (a YOLOv8 car-damage
+> Status: **M0–M8a and M7 complete** (foundations, walking skeleton, data engine, vision models,
+> tools, the LLM triage agent and its evaluation, the intake agent and memory, a local web
+> prototype, and trust: a red-team suite and a [system card](docs/system-card.md)). Next: **M8b**,
+> a read-only public showcase on Hugging Face Spaces. This repository started as a STAT 5350 course project (a YOLOv8 car-damage
 > detector). See [`legacy/README.md`](legacy/README.md) for the original code and the audit that
 > motivated the rebuild.
 
@@ -15,7 +15,7 @@ of every consequential decision.
 
 | Area | What is built | Result |
 |---|---|---|
-| Claim pipeline | Event-sourced, resumable workflow; rules R1–R9; no route can deny | 410 tests, 96% coverage |
+| Claim pipeline | Event-sourced, resumable workflow; rules R1–R9; no route can deny | 820+ tests, 96% coverage |
 | Data | `damage-v1` (4,000 CarDD images) and `parts-v1` (3,833 images), versioned with DVC | 0 contract errors; 33 near-duplicate images moved so no group spans two splits |
 | Damage model | YOLO11s-seg, trained on a free Kaggle GPU | Test mask mAP50 **0.733** (course model: validation mAP50 0.137) |
 | Part model | YOLO11n-seg, 22 part classes | Test mask mAP50 **0.746** |
@@ -28,7 +28,10 @@ of every consequential decision.
 | Intake agent | A chat that collects 10 facts and 3 photos, coaches retakes, pauses and resumes (LangGraph checkpoints) | Simulated customers: pass^4 **0.80** (target 0.70) |
 | Memory and skills | Claim memory written by the workflow (near-copy photos, same policy, similar damage); 3 approved adjuster procedures | Harmless stories fast-tracked 5 of 10 (was 3); recall still 1.00 |
 | Human review | Review queue; only a person can deny; payments wait for a person on review routes | `claimlens queue`, `claimlens review-claim` |
-| LLM gateway | Tiers, retries, fallback, cache; caps of $0.03 per claim and $1 per day | Two live test calls cost $0.0006 in total |
+| LLM gateway | Tiers, retries, fallback, cache; caps of $0.10 per claim and $1 per day | Two live test calls cost $0.0006 in total |
+| Web prototype | `claimlens serve`: chat, claims list, claim page, review (local only) | Live claim filed, decided and reviewed; log verified |
+| Red team | 33 attacks mapped to the OWASP agentic top 10, run with a model that obeys the attacker; live injections on the real agent | **33 of 33 held**; live: 15 of 15 to a person, agent fooled 0 times |
+| Fraud | Exact and near-copy photo reuse across claims (memory) → fraud review | Re-saves and 2% crops caught |
 | Policy search | 56 fictional clauses, LanceDB hybrid search, citation check | recall@5 **1.00** on 10 questions (a small corpus, so a generous bar) |
 
 Escalation recall is the safety gate: every claim that needs a person must reach one. It has
@@ -197,7 +200,7 @@ tests/              unit and integration tests, fixtures
 training/           Kaggle GPU jobs
 evals/              golden claims, policy-search questions, evaluation reports
 reviews/            label review decisions, versioned as data
-docs/               PR/FAQ, specs, plans, ADRs 0001-0018, data card, model card, retros
+docs/               PR/FAQ, specs, plans, ADRs 0001-0019, system card, data card, model card, retros
 data/               datasets — versioned with DVC, not git (see data/README.md)
 models/             model weights — private, not in git (see models/README.md)
 legacy/             the original course project, frozen for comparison
@@ -246,6 +249,10 @@ uv run claimlens review-claim <claim-id> --deny --reviewer "Your Name" --note "w
 uv run claimlens eval-gate
 uv run claimlens --agent llm --detector fused eval-triage --golden evals/golden/v2/claims.jsonl \
   --llm-daily-cap 18 --scorecard evals/scorecards/current.json --report evals/reports/run.md
+
+# Red team: 33 attacks with a model that obeys the attacker (free), then live injections (~$0.20)
+uv run claimlens eval-redteam --report evals/reports/redteam.md
+uv run claimlens --agent llm eval-triage --golden evals/redteam/injections.jsonl   --report evals/reports/redteam-live.md
 ```
 
 Set `CLAIMLENS_TRACING=1` (after `uv sync --group tracing`) to send each agent run to a local
@@ -329,8 +336,8 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 | M5 ✅ | Triage agent: LangGraph agent, human review queue, golden v2, LLM judge, CI eval gate, tracing |
 | M6 ✅ | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
 | M8a ✅ | Local web prototype: FastAPI, chat, claim page, review queue |
-| M7 (next, trimmed) | Trust: red-team suite (OWASP agentic top 10), near-copy photos as a fraud rule, system card |
-| M8b | Ship: Docker, public demo, monitoring, write-up |
+| M7 ✅ | Trust: red-team suite (OWASP agentic top 10), near-copy photos as a fraud rule, system card |
+| M8b (next) | Ship: read-only showcase on Hugging Face Spaces, write-up |
 
 Full design: [`docs/specs/2026-10-01-claimlens-design.md`](docs/specs/2026-10-01-claimlens-design.md).
 
