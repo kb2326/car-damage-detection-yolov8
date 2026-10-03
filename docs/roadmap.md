@@ -173,7 +173,7 @@ something that already works.*
 - [x] Fusion fix: damage only on plausible parts, part ratio capped at 1 (ADR 0009 update)
 - [x] Human review queue: `claimlens queue`, `claimlens review-claim`; only a person can deny; payments wait for a review (ADR 0015)
 - [x] 150 golden claims (v2): 53 narrative cases; the agent catches 43 of 43 with the right clause, fast-tracks 3 of 10 harmless stories (too cautious)
-- [ ] LLM judge, checked against 50 of your own labels (judge built, pass rate 0.77; **waiting for your labels**)
+- [x] LLM judge built (pass rate 0.77); checking it against your 50 labels was **skipped by the owner**, so it is not validated and stays out of the gate (open item)
 - [x] CI blocks changes that lower eval scores or skip re-evaluation (`claimlens eval-gate`, ADR 0014)
 - [x] Tracing in Phoenix (OpenTelemetry), opt-in with `CLAIMLENS_TRACING=1`
 

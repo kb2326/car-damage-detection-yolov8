@@ -4,9 +4,9 @@
 for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
 of every consequential decision.
 
-> Status: **M0–M4 complete; M5a built** (the LLM triage agent on LangGraph). Next: **M5b,
-> measuring the agent** (150 golden claims, an LLM judge, CI gates, tracing, review queue). This repository started as a STAT 5350 course project (a
-> YOLOv8 car-damage detector). See [`legacy/README.md`](legacy/README.md) for the original code and
+> Status: **M0–M5 complete** (foundations, walking skeleton, data engine, vision models, tools,
+> the LLM triage agent and its evaluation). Next: **M6, the intake agent and memory.** This
+> repository started as a STAT 5350 course project (a YOLOv8 car-damage detector). See [`legacy/README.md`](legacy/README.md) for the original code and
 > the audit that motivated the rebuild.
 
 ## Where it stands
@@ -21,7 +21,9 @@ of every consequential decision.
 | Calibration | Temperature scaling; the confidence threshold comes from evidence | T = 0.80; threshold 0.65 |
 | Golden set (97 claims) | Full system at threshold 0.65 | Route accuracy **0.78**, escalation recall **1.00**, 9 of 30 correct fast-tracks |
 | Tools (MCP) | 4 servers with per-agent scopes; payments need a human-signed, single-use token | Usable from Claude Code |
-| Triage agent | LangGraph agent on the gateway and read-only MCP tools; cites clauses, checked in code | Escalation recall 1.00, $0.009 per claim, 0 failures |
+| Triage agent | LangGraph agent on the gateway and read-only MCP tools; cites clauses, checked in code | Escalation recall 1.00, $0.010 per claim, 0 failures |
+| Agent evaluation | Golden v2 (150 claims, 53 story cases), code-scored quality, an LLM judge, a CI gate on a committed scorecard | Stories caught **43 of 43** with the right clause; harmless stories fast-tracked 3 of 10 (too cautious) |
+| Human review | Review queue; only a person can deny; payments wait for a person on review routes | `claimlens queue`, `claimlens review-claim` |
 | LLM gateway | Tiers, retries, fallback, cache; caps of $0.03 per claim and $1 per day | Two live test calls cost $0.0006 in total |
 | Policy search | 56 fictional clauses, LanceDB hybrid search, citation check | recall@5 **1.00** on 10 questions (a small corpus, so a generous bar) |
 
@@ -179,6 +181,8 @@ src/claimlens/      Python package
   mcp/              MCP tool servers, profiles (scopes), guard, audit
   llm/              LLM gateway: tiers, retries, cache, cost caps, call log
   knowledge/        policy wording parser and LanceDB hybrid search
+  agent/            LangGraph triage agent: chat model on the gateway, MCP tools adapter, checks
+  evals/            golden sets, triage eval, agent metrics, LLM judge, scorecard and gate
 config/             rules, rate card, taxonomy, training runs, agent profiles, LLM tiers
 knowledge/policies/ fictional policy wordings (basic, standard, premium)
 prompts/            versioned prompt files
@@ -186,7 +190,7 @@ tests/              unit and integration tests, fixtures
 training/           Kaggle GPU jobs
 evals/              golden claims, policy-search questions, evaluation reports
 reviews/            label review decisions, versioned as data
-docs/               PR/FAQ, specs, plans, ADRs 0001-0012, data card, model card, retros
+docs/               PR/FAQ, specs, plans, ADRs 0001-0015, data card, model card, retros
 data/               datasets — versioned with DVC, not git (see data/README.md)
 models/             model weights — private, not in git (see models/README.md)
 legacy/             the original course project, frozen for comparison
@@ -213,7 +217,20 @@ uv run claimlens --agent llm run --policy P-1001 --description "Scraped a pole" 
 uv run claimlens show <claim-id>     # decision and audit trail
 uv run claimlens verify <claim-id>   # check the hash chain
 uv run claimlens resume <claim-id>   # finish a claim that was interrupted
+
+# Human review: claims waiting for a person, and recording a decision
+uv run claimlens queue
+uv run claimlens review-claim <claim-id> --approve --reviewer "Your Name"
+uv run claimlens review-claim <claim-id> --deny --reviewer "Your Name" --note "why"
+
+# Evaluation: the CI gate (no key or weights needed), and a full agent run (about $1)
+uv run claimlens eval-gate
+uv run claimlens --agent llm --detector fused eval-triage --golden evals/golden/v2/claims.jsonl \
+  --llm-daily-cap 18 --scorecard evals/scorecards/current.json --report evals/reports/run.md
 ```
+
+Set `CLAIMLENS_TRACING=1` (after `uv sync --group tracing`) to send each agent run to a local
+Phoenix (`uvx arize-phoenix serve`) as a trace of model calls, tool calls and graph steps.
 
 `claimlens run` takes `--detector legacy|yolo-seg|fused`. `fused` is the full system (damage
 model + part model).
@@ -262,8 +279,8 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 | M2 ✅ | Data engine: CarDD + foundation-model auto-labelling, DVC, FiftyOne |
 | M3 ✅ | Vision models: damage + part instance segmentation, fusion, calibration, model card |
 | M4 ✅ | Tools & integration: MCP servers with scopes, LLM gateway, policy search with citations |
-| M5 (in progress) | Triage agent ✅ (M5a); human-in-the-loop, LLM evals, CI gates, tracing (M5b) |
-| M6 | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
+| M5 ✅ | Triage agent: LangGraph agent, human review queue, golden v2, LLM judge, CI eval gate, tracing |
+| M6 (next) | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
 | M7 | Trust & governance: OWASP agentic threat model, red-team, fraud, PII, AIS program |
 | M8 | Ship: ONNX, Docker, public demo, monitoring |
 

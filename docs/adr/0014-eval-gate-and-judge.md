@@ -60,8 +60,12 @@ CI has no API key and no model weights, so it cannot re-run the evaluation itsel
   | Harmless stories fast-tracked | **3 of 10 (0.30)** |
   | Agent failures | 0 |
   | Cost per claim (list price) | $0.010 |
-  | Judge pass rate | 0.77 (116 of 150), $0.59 to judge 150 |
+  | Judge pass rate (not validated, so not gated) | 0.77 (116 of 150), $0.59 to judge 150 |
 
+- **The judge is not validated yet.** On 2026-10-03 the owner chose to skip labelling the 50
+  items for now. As the decision above requires, the judge's pass rate is reported but stays
+  `null` in the scorecard and out of the gate. To validate it later: `claimlens judge export`,
+  label the page, then `claimlens judge agreement --scorecard evals/scorecards/current.json`.
 - **The agent catches every story that must go to a person, but it is too cautious with harmless
   ones.** The benign pass rate (0.30) is the number a prompt change should raise, and the gate
   will hold escalation recall and the catch rate while it does.
