@@ -41,6 +41,7 @@ from claimlens.evals.triage import (
     what_if_thresholds,
 )
 from claimlens.events.envelope import ChainIntegrityError, ClaimEvent
+from claimlens.events.payloads import HumanReviewed, ReviewAction
 from claimlens.events.projection import ClaimState, fold
 from claimlens.events.store import ClaimNotFoundError, SQLiteEventStore
 from claimlens.intake import submit_claim
@@ -64,6 +65,7 @@ from claimlens.review.decisions import (
     read_review,
     write_review,
 )
+from claimlens.review_queue import payable, pending_reviews, record_review
 from claimlens.tracing import setup_tracing, shutdown_tracing
 from claimlens.training.commands import (
     ExporterFactory,
@@ -230,6 +232,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="triage agent: rule-based stub (default) or the LLM agent (needs ANTHROPIC_API_KEY)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    queue = sub.add_parser("queue", help="claims waiting for a person, oldest first")
+    queue.add_argument("--route", choices=["ADJUSTER_REVIEW", "FRAUD_REVIEW"], default=None)
+    decide = sub.add_parser("review-claim", help="human step: record what a reviewer decided")
+    decide.add_argument("claim_id", type=UUID)
+    action = decide.add_mutually_exclusive_group(required=True)
+    action.add_argument("--approve", action="store_true", help="approve (payment may follow)")
+    action.add_argument("--override", choices=[r.value for r in Route], help="set another route")
+    action.add_argument("--deny", action="store_true", help="deny the claim (people only)")
+    action.add_argument("--request-info", action="store_true", help="ask for more information")
+    decide.add_argument("--reviewer", required=True, help="your name, recorded on the claim")
+    decide.add_argument("--note", default="", help="required for --override and --deny")
 
     run = sub.add_parser("run", help="submit a claim and process it")
     run.add_argument("--policy", required=True, help="policy number, e.g. P-1001")
@@ -447,6 +461,10 @@ def _dispatch(
             return _resume(args, store, detector_factory)
         if args.command == "approve-payment":
             return _approve_payment(args, store)
+        if args.command == "queue":
+            return _queue(args, store)
+        if args.command == "review-claim":
+            return _review_claim(args, store)
         return _inspect(args, store)
     finally:
         store.close()
@@ -515,6 +533,52 @@ def _mcp(args: argparse.Namespace, factory: DetectorFactory) -> int:
     return 0
 
 
+def _queue(args: argparse.Namespace, store: SQLiteEventStore) -> int:
+    route = Route(args.route) if args.route else None
+    waiting = pending_reviews(store, route)
+    if not waiting:
+        print("No claims are waiting for review.")
+        return 0
+    for state in waiting:
+        assert state.decision is not None
+        print(f"{state.claim_id}  {state.decision.route.value}  {state.decision.rule_id}")
+        print(f"    Why: {state.decision.reason}")
+        rec = state.recommendation
+        if rec is not None:
+            cited = ", ".join(rec.policy_citations) or "none"
+            print(
+                f"    Agent: {rec.route_suggestion.value} ({rec.confidence.value}); cites {cited}"
+            )
+            print(f"    {rec.rationale}")
+            for question in rec.open_questions:
+                print(f"    ? {question}")
+        if state.review is not None:
+            print(f"    Last review: {state.review.action.value} by {state.review.reviewer}")
+    return 0
+
+
+def _review_claim(args: argparse.Namespace, store: SQLiteEventStore) -> int:
+    if args.approve:
+        action, final = ReviewAction.APPROVE, None
+    elif args.override:
+        action, final = ReviewAction.OVERRIDE, Route(args.override)
+    elif args.deny:
+        action, final = ReviewAction.DENY, None
+    else:
+        action, final = ReviewAction.REQUEST_INFO, None
+    if action in (ReviewAction.OVERRIDE, ReviewAction.DENY) and not args.note.strip():
+        print(f"error: --{action.value} needs --note with the reason", file=sys.stderr)
+        return 2
+    review = HumanReviewed(reviewer=args.reviewer, action=action, final_route=final, note=args.note)
+    try:
+        seq = record_review(store, args.claim_id, review)
+    except (ClaimNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"Recorded {action.value} by {args.reviewer} on claim {args.claim_id} (event {seq})")
+    return 0
+
+
 def _approve_payment(args: argparse.Namespace, store: SQLiteEventStore) -> int:
     from datetime import UTC, datetime
 
@@ -525,11 +589,9 @@ def _approve_payment(args: argparse.Namespace, store: SQLiteEventStore) -> int:
     except ClaimNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    if state.decision is None:
-        print("error: the claim has no decision yet", file=sys.stderr)
-        return 1
-    if state.decision.route is Route.FRAUD_REVIEW:
-        print("error: claims routed to FRAUD_REVIEW cannot be approved here", file=sys.stderr)
+    refusal = payable(state)
+    if refusal is not None:
+        print(f"error: this claim cannot be paid: {refusal}", file=sys.stderr)
         return 1
     if args.amount <= 0:
         print("error: amount must be positive", file=sys.stderr)

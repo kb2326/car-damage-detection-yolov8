@@ -287,3 +287,20 @@ def test_llm_daily_cap_reaches_the_agent_factory(
     report = (tmp_path / "r.md").read_text(encoding="utf-8")
     assert "## Agent" in report
     assert "| Citation validity |" in report
+
+
+def test_review_claim_and_queue(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from tests.fakes import decided_claim
+
+    store, claim = decided_claim(tmp_path, Route.ADJUSTER_REVIEW)
+    store.close()
+    db = ["--db", str(tmp_path / "claims.db")]
+    assert main([*db, "queue"]) == 0
+    out = capsys.readouterr().out
+    assert str(claim) in out
+    assert "R7" in out
+    assert main([*db, "review-claim", str(claim), "--deny", "--reviewer", "sam"]) == 2
+    assert "--note" in capsys.readouterr().err
+    assert main([*db, "review-claim", str(claim), "--approve", "--reviewer", "sam"]) == 0
+    assert main([*db, "queue"]) == 0
+    assert "No claims are waiting" in capsys.readouterr().out
