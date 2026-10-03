@@ -1,0 +1,4 @@
+# The evaluation gate (spec docs/specs/2026-10-02-m5b-agent-evaluation-design.md).
+# The LLM judge counts only when it agrees with the owner's labels at least this well.
+judge_min_agreement = 0.80
+judge_min_kappa = 0.60

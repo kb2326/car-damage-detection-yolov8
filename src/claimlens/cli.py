@@ -26,6 +26,11 @@ from claimlens.decision import load_decision_config
 from claimlens.domain import Frozen, Route
 from claimlens.evals.agent_metrics import AgentQuality
 from claimlens.evals.golden import GoldenClaim, load_golden, write_golden
+from claimlens.evals.judge_commands import (
+    JudgeGatewayFactory,
+    add_judge_parser,
+    run_judge_command,
+)
 from claimlens.evals.metrics import compute_triage_metrics
 from claimlens.evals.triage import (
     CaseResult,
@@ -45,6 +50,7 @@ from claimlens.knowledge.commands import (
     run_knowledge_command,
 )
 from claimlens.knowledge.embed import Embedder
+from claimlens.llm.gateway import Gateway
 from claimlens.policy import load_policies
 from claimlens.pricing import load_rate_card
 from claimlens.review.decisions import (
@@ -250,6 +256,12 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--golden", type=Path, required=True, help="golden claims .jsonl")
     evaluate.add_argument("--report", type=Path, required=True, help="Markdown report to write")
     evaluate.add_argument(
+        "--save-run",
+        type=Path,
+        default=None,
+        help="save each case's evidence and recommendation here (for the LLM judge)",
+    )
+    evaluate.add_argument(
         "--cases", type=Path, default=None, help="run only the case ids listed in this file"
     )
     evaluate.add_argument(
@@ -282,6 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--reviewer", default="reviewer")
     add_train_parser(sub)
     add_knowledge_parser(sub)
+    add_judge_parser(sub)
     return parser
 
 
@@ -337,10 +350,13 @@ def main(
     exporter: ExporterFactory = _export_onnx,
     embedder_factory: EmbedderFactory = _fastembedder,
     agent_factory: AgentFactory = _llm_agent,
+    judge_gateway_factory: JudgeGatewayFactory | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "knowledge":
         return run_knowledge_command(args, embedder_factory=embedder_factory)
+    if args.command == "judge":
+        return run_judge_command(args, judge_gateway_factory or _judge_gateway(args))
     args.agent_factory = agent_factory
     try:
         return _dispatch(
@@ -532,6 +548,37 @@ def _select_cases(golden: Sequence[GoldenClaim], path: Path) -> list[GoldenClaim
     return [c for c in golden if c.case_id in wanted]
 
 
+def _judge_gateway(args: argparse.Namespace) -> JudgeGatewayFactory:
+    def make(per_day_usd: float | None) -> Gateway:
+        from claimlens.llm.factory import build_gateway
+
+        return build_gateway(args.config, Path.cwd(), per_day_usd=per_day_usd)
+
+    return make
+
+
+def _save_run(results: Sequence[CaseResult], run_dir: Path) -> None:
+    from claimlens.agent.evidence import render_evidence
+    from claimlens.evals.judge import JudgeItem
+    from claimlens.evals.judge_export import save_case
+    from claimlens.knowledge.clauses import load_wordings
+
+    text = {c.clause_id: c.text for c in load_wordings(Path.cwd() / "knowledge" / "policies")}
+    for r in results:
+        if r.state is None or r.state.recommendation is None:
+            continue
+        rec = r.state.recommendation
+        save_case(
+            run_dir,
+            JudgeItem(
+                case_id=r.case_id,
+                evidence=render_evidence(r.state).text,
+                recommendation=rec,
+                clauses={c: text.get(c, "(unknown clause)") for c in rec.policy_citations},
+            ),
+        )
+
+
 def _agent_quality(
     cases: Sequence[GoldenClaim], results: Sequence[CaseResult], config_dir: Path
 ) -> AgentQuality:
@@ -583,6 +630,8 @@ def _eval_triage(args: argparse.Namespace, factory: DetectorFactory) -> int:
         cases, results, metrics, meta, what_if=what_if, agent=summary, quality=quality
     )
     args.report.write_text(report, encoding="utf-8")
+    if args.save_run is not None:
+        _save_run(results, args.save_run)
     recall = "n/a" if metrics.escalation_recall is None else f"{metrics.escalation_recall:.2f}"
     print(
         f"Cases: {metrics.total}  Route accuracy: {metrics.route_accuracy:.2f}  "
