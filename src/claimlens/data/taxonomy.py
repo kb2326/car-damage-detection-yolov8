@@ -62,11 +62,18 @@ class PartGroups(Frozen):
 
     classes: tuple[str, ...]
     members: dict[str, tuple[str, ...]]
+    # Damage type -> the only groups it can be on (e.g. a flat tyre only on a wheel).
+    # Damage types not listed can be on any part.
+    damage_parts: dict[str, tuple[str, ...]] = {}
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:
         if set(self.members) != set(self.classes):
             raise ValueError("part group members must be defined for exactly the group classes")
+        for damage, groups in self.damage_parts.items():
+            unknown = sorted(set(groups) - set(self.classes))
+            if unknown:
+                raise ValueError(f"damage_parts.{damage} names unknown part group(s): {unknown}")
         seen: set[str] = set()
         for parts in self.members.values():
             for part in parts:
@@ -74,6 +81,10 @@ class PartGroups(Frozen):
                     raise ValueError(f"part {part!r} is in more than one group")
                 seen.add(part)
         return self
+
+    def plausible(self, damage_type: str, group: str) -> bool:
+        allowed = self.damage_parts.get(damage_type)
+        return allowed is None or group in allowed
 
     def group_of(self, part: str) -> str:
         for group, parts in self.members.items():

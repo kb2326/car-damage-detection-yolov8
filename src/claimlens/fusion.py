@@ -26,34 +26,39 @@ def fuse(
     *,
     min_overlap: float = 0.10,
 ) -> list[FusedDamage]:
-    """Each damage goes to the part covering most of it (ties: the smaller part)."""
+    """Each damage goes to the plausible part covering most of it (ties: the smaller part).
+
+    `part_area_ratio` is the share of that part the damage covers: overlap / part area, so it
+    is never above 1.
+    """
     part_masks = [(part, rasterize(part.polygon_xyn)) for part in parts]
     fused: list[FusedDamage] = []
     for instance in damage:
         damage_mask = rasterize(instance.polygon_xyn)
         damage_area = area(damage_mask)
-        best: tuple[tuple[float, int], SegInstance, int] | None = None
+        damage_type = normalize_class_name(instance.label).value
+        best: tuple[tuple[float, int], str, int, int] | None = None
         if damage_area > 0:
             for part, part_mask in part_masks:
                 part_area = area(part_mask)
                 if part_area == 0:
                     continue
-                overlap = intersection(damage_mask, part_mask) / damage_area
+                group = groups.group_of(part.label)
+                if not groups.plausible(damage_type, group):
+                    continue
+                shared = intersection(damage_mask, part_mask)
+                overlap = shared / damage_area
                 if overlap < min_overlap:
                     continue
                 key = (overlap, -part_area)
                 if best is None or key > best[0]:
-                    best = (key, part, part_area)
+                    best = (key, group, shared, part_area)
         if best is None:
             fused.append(FusedDamage(damage=instance, part_group=None, part_area_ratio=None))
         else:
-            _, part, part_area = best
+            _, group, shared, part_area = best
             fused.append(
-                FusedDamage(
-                    damage=instance,
-                    part_group=groups.group_of(part.label),
-                    part_area_ratio=damage_area / part_area,
-                )
+                FusedDamage(damage=instance, part_group=group, part_area_ratio=shared / part_area)
             )
     return fused
 
