@@ -1,0 +1,23 @@
+name: Deploy showcase to Hugging Face
+
+# The read-only showcase (ADR 0020). Runs by hand or on a published release, never on pull requests.
+# Needs the repository secret HF_TOKEN (a Hugging Face write token) and the repository variable
+# HF_SPACE (for example "your-name/claimlens").
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Deploy
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: uv run --no-project --with "huggingface_hub>=0.34" python scripts/deploy_space.py "${{ vars.HF_SPACE }}"
