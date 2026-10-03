@@ -1,5 +1,19 @@
 {% extends "base.html" %}
 {% block main %}
+{% if showcase %}
+<section class="chat" aria-labelledby="chat-title">
+  <div>
+    <p class="eyebrow">Customer · recorded</p>
+    <h1 id="chat-title">A recorded claim chat</h1>
+    <p class="muted">A scripted customer reporting a claim to the intake agent (Claude Haiku). In the
+      local app this is a live chat with photo uploads; the showcase only replays it.</p>
+  </div>
+  <ol class="messages">
+  {% for turn in transcript %}<li class="{{ turn.role }}">{{ turn.text }}</li>{% endfor %}
+  </ol>
+  <p><a href="/claims">See the claims this produced</a></p>
+</section>
+{% else %}
 <section class="chat" aria-labelledby="chat-title">
   <div>
     <p class="eyebrow">Customer</p>
@@ -18,5 +32,6 @@
   <p id="chat-error" class="error" role="alert" hidden></p>
   <p id="done" class="done" hidden></p>
 </section>
+{% endif %}
 {% endblock %}
-{% block scripts %}<script src="/static/chat.js"></script>{% endblock %}
+{% block scripts %}{% if not showcase %}<script src="/static/chat.js"></script>{% endif %}{% endblock %}

@@ -4,12 +4,11 @@
 for an auditable adjuster agent that runs inside a deterministic workflow, with humans in control
 of every consequential decision.
 
-> Status: **M0–M8a and M7 complete** (foundations, walking skeleton, data engine, vision models,
-> tools, the LLM triage agent and its evaluation, the intake agent and memory, a local web
-> prototype, and trust: a red-team suite and a [system card](docs/system-card.md)). Next: **M8b**,
-> a read-only public showcase on Hugging Face Spaces. This repository started as a STAT 5350 course project (a YOLOv8 car-damage
-> detector). See [`legacy/README.md`](legacy/README.md) for the original code and the audit that
-> motivated the rebuild.
+> Status: **complete (M0–M8)**: foundations, data engine, our own vision models, MCP tools, the
+> LLM triage and intake agents with evaluations, memory and skills, a web app, a red-team suite and
+> a [system card](docs/system-card.md), and a read-only public showcase (`claimlens serve
+> --showcase`, deployable to Hugging Face Spaces). This repository started as a STAT 5350 course
+> project (a YOLOv8 car-damage detector); see [`legacy/README.md`](legacy/README.md).
 
 ## Where it stands
 
@@ -192,15 +191,17 @@ src/claimlens/      Python package
   memory/           claim memory: records, LanceDB index, near-copy photos, writer
   agent/            LangGraph triage agent: chat model on the gateway, MCP tools adapter, checks
   evals/            golden sets, triage eval, agent metrics, LLM judge, scorecard and gate
-  web/              local web prototype: FastAPI app, pages, chat and review API
+  web/              web app: FastAPI app, pages, chat and review API, read-only showcase mode
 config/             rules, rate card, taxonomy, training runs, agent profiles, LLM tiers
 knowledge/policies/ fictional policy wordings (basic, standard, premium)
 prompts/            versioned prompt files
 tests/              unit and integration tests, fixtures
 training/           Kaggle GPU jobs
-evals/              golden claims, policy-search questions, evaluation reports
+evals/              golden claims, red-team attacks, evaluation reports
+showcase/           recorded sample claims for the public showcase (CC BY / BY-SA photos)
+hf-space/           the Hugging Face Space README
 reviews/            label review decisions, versioned as data
-docs/               PR/FAQ, specs, plans, ADRs 0001-0019, system card, data card, model card, retros
+docs/               PR/FAQ, specs, plans, ADRs 0001-0020, system card, data card, model card, retros
 data/               datasets — versioned with DVC, not git (see data/README.md)
 models/             model weights — private, not in git (see models/README.md)
 legacy/             the original course project, frozen for comparison
@@ -297,6 +298,23 @@ The API is documented at `http://127.0.0.1:8000/docs`. `--seed` files three samp
 third reuses the first photo, so rule R1 sends it to fraud review. The chat uses Claude Haiku
 (about $0.05 a claim) and the triage agent Claude Sonnet (about $0.01), within the gateway's caps.
 
+## The public showcase
+
+A read-only version of the web app, serving five sample claims recorded with the real models and
+agents (ADR 0020). Nothing can be filed or changed; there are no live model or LLM calls, and no
+weights or keys in the image. Photos: Wikimedia Commons, credited in
+[`showcase/CREDITS.md`](showcase/CREDITS.md).
+
+```bash
+uv run claimlens serve --showcase --data showcase      # locally, http://127.0.0.1:8000
+docker build -t claimlens-showcase . && docker run -p 7860:7860 claimlens-showcase
+```
+
+To publish it on Hugging Face Spaces: add a Hugging Face write token as the repository secret
+`HF_TOKEN` and the Space name (for example `your-name/claimlens`) as the variable `HF_SPACE`, then
+run the **Deploy showcase to Hugging Face** workflow (or publish a release). To rebuild the samples:
+`uv run python scripts/build_showcase.py` (about $0.15).
+
 ## Use ClaimLens from Claude Code (MCP)
 
 ClaimLens runs as four MCP tool servers (ADR 0010). Each one shows and accepts only the tools its
@@ -337,7 +355,7 @@ Payments are deliberately not in `.mcp.json`. No agent profile can pay.
 | M6 ✅ | Intake agent & memory: multi-turn intake, Agent Skills, user-simulator evals |
 | M8a ✅ | Local web prototype: FastAPI, chat, claim page, review queue |
 | M7 ✅ | Trust: red-team suite (OWASP agentic top 10), near-copy photos as a fraud rule, system card |
-| M8b (next) | Ship: read-only showcase on Hugging Face Spaces, write-up |
+| M8b ✅ | Ship: read-only showcase (Docker, Hugging Face Spaces), write-up |
 
 Full design: [`docs/specs/2026-10-01-claimlens-design.md`](docs/specs/2026-10-01-claimlens-design.md).
 

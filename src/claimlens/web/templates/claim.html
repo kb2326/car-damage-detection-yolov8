@@ -15,7 +15,7 @@
   </div>
 </div>
 {% if c.decision_reason %}<p class="reason">{{ c.decision_reason }}</p>{% endif %}
-{% if c.status == "stopped" %}
+{% if c.status == "stopped" and not showcase %}
   <div class="alert" role="alert">
     <p>Processing stopped{% if c.stopped_at %} at <strong>{{ c.stopped_at }}</strong>{% endif %}.{% if c.error %} {{ c.error }}{% endif %} The claim's log keeps every finished step.</p>
     <button id="resume" type="button" class="primary">Resume</button>
@@ -94,7 +94,7 @@
   {% else %}<p class="muted">None found, or memory is off.</p>{% endif %}
 </section>
 
-{% if c.route and c.status != "running" %}
+{% if c.route and c.status != "running" and not showcase %}
 <section aria-labelledby="t-review" class="panel">
   <h2 id="t-review">Review {% if c.review_action %}<span class="muted small">last decision: {{ c.review_action.replace("_", " ") }}</span>{% endif %}</h2>
   <form id="review-form">

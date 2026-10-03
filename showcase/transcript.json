@@ -1,0 +1,102 @@
+[
+ {
+  "role": "agent",
+  "text": "Hello! I'm ClaimLens, and I'm here to help you report damage to your car. To get started, could you please provide your policy number?"
+ },
+ {
+  "role": "customer",
+  "text": "P-1001"
+ },
+ {
+  "role": "agent",
+  "text": "Great! Your policy is confirmed. Now, could you tell me what happened to your car, in your own words?"
+ },
+ {
+  "role": "customer",
+  "text": "Bricks from a damaged wall fell onto my parked van and dented the roof and bonnet."
+ },
+ {
+  "role": "agent",
+  "text": "Thank you. When did this happen?"
+ },
+ {
+  "role": "customer",
+  "text": "yesterday"
+ },
+ {
+  "role": "agent",
+  "text": "Where did this happen?"
+ },
+ {
+  "role": "customer",
+  "text": "outside my office on Station Road"
+ },
+ {
+  "role": "agent",
+  "text": "What did your van hit or get hit by?"
+ },
+ {
+  "role": "customer",
+  "text": "falling bricks"
+ },
+ {
+  "role": "agent",
+  "text": "Was another person or vehicle involved?"
+ },
+ {
+  "role": "customer",
+  "text": "no"
+ },
+ {
+  "role": "agent",
+  "text": "Were you driving the van when this happened?"
+ },
+ {
+  "role": "customer",
+  "text": "nobody was driving, it was parked; I am the policyholder"
+ },
+ {
+  "role": "agent",
+  "text": "Was the van being used for work at the time this happened?"
+ },
+ {
+  "role": "customer",
+  "text": "no, it was parked, not being used"
+ },
+ {
+  "role": "agent",
+  "text": "Was anyone hurt in this incident?"
+ },
+ {
+  "role": "customer",
+  "text": "no"
+ },
+ {
+  "role": "agent",
+  "text": "Thank you. Now I need to collect some photos. Please take a photo showing the whole van and the damaged side."
+ },
+ {
+  "role": "customer",
+  "text": "[photo sent]"
+ },
+ {
+  "role": "agent",
+  "text": "Great! Now please take a close-up photo of the damage."
+ },
+ {
+  "role": "customer",
+  "text": "[photo sent]"
+ },
+ {
+  "role": "agent",
+  "text": "Perfect. Finally, please take a photo of your number plate."
+ },
+ {
+  "role": "customer",
+  "text": "[photo sent]"
+ },
+ {
+  "role": "agent",
+  "text": "Thank you, that's everything I need. Your claim number is 3972c897-566a-5333-ac16-7375d99c103c. A claims handler will review it and be in touch."
+ }
+]

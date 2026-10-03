@@ -19,7 +19,9 @@ Services = Annotated[WebServices, Depends(get_services)]
 
 @router.get("/", response_class=HTMLResponse)
 def chat_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "chat.html", {"title": "File a claim"})
+    services: WebServices = request.app.state.services
+    context = {"title": "File a claim", "transcript": services.transcript}
+    return templates.TemplateResponse(request, "chat.html", context)
 
 
 @router.get("/claims", response_class=HTMLResponse)

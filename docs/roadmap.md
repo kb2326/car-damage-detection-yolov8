@@ -212,12 +212,13 @@ public demo. Order now: **M8a → trimmed M7 → M8b**. Nothing goes public befo
 - [x] [System card](system-card.md)
 - Dropped for now (future work): AIS programme document, EXIF and AI-image checks, a story-versus-photo code check
 
-## M8b · Ship
+## M8b · Ship (done; live once the owner runs the deploy)
 
 *Put it in front of people.*
 
-- [ ] Docker image; the FastAPI app as the public API, with sign-in
-- [ ] Public demo
-- [ ] Drift monitoring (Evidently)
-- [ ] Final write-up, demo video, the single LinkedIn post
-- [ ] Stretch: A2A repair-shop partner agent, adjuster copilot
+- [x] Read-only showcase mode of the web app; five sample claims built with the real models and agents from openly licensed photos (ADR 0020)
+- [x] Docker image (no weights, no key) and a Hugging Face Spaces deploy workflow
+- [x] Final README, system card, retrospective
+- [ ] Owner: create the Space (HF_TOKEN, HF_SPACE) and run the deploy workflow
+- [ ] Owner: the single LinkedIn post (draft provided), optional demo video
+- Dropped: drift monitoring (nothing live to monitor). Stretch items not done: A2A partner agent, adjuster copilot

@@ -1,0 +1,19 @@
+# Only what the showcase image needs is copied (see Dockerfile); this keeps everything else out
+# of the build context, above all private data, weights and secrets.
+.env
+.env.*
+.git
+.venv
+.superpowers
+data
+models
+var
+legacy
+tests
+evals
+training
+reviews
+notebooks
+docs
+**/__pycache__
+*.pyc

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import threading
 import time
@@ -17,7 +18,7 @@ from claimlens.intake import submit_claim
 from claimlens.intake_agent.session import IntakeSessions
 from claimlens.web.runner import ClaimRunner
 from claimlens.web.services import WebServices, pipeline_processor
-from claimlens.web.settings import load_web_settings
+from claimlens.web.settings import WebSettings, load_web_settings
 from claimlens.web.workers import Worker
 from claimlens.workflow import PipelineDeps
 
@@ -125,6 +126,29 @@ def seed_claims(services: WebServices, photos: Sequence[Path]) -> list[UUID]:
     return claims
 
 
+def showcase_services(data: Path, settings: WebSettings) -> WebServices:
+    """The public showcase: recorded claims from `data`, read-only, no agents, models or memory."""
+    transcript_path = data / "transcript.json"
+    transcript = (
+        json.loads(transcript_path.read_text(encoding="utf-8")) if transcript_path.is_file() else []
+    )
+
+    def refuse(claim_id: UUID) -> None:
+        raise RuntimeError("the showcase never processes claims")
+
+    return WebServices(
+        db_path=data / "claims.db",
+        blobs=BlobStore(data / "blobs"),
+        settings=settings.model_copy(update={"showcase": True}),
+        runner=ClaimRunner(Worker("claims", inline=True), refuse),
+        intake_worker=Worker("intake", inline=True),
+        intake=None,
+        upload_dir=data / "uploads-never-used",
+        read_only=True,
+        transcript=transcript,
+    )
+
+
 def run_serve(
     args: argparse.Namespace,
     detector_factory: Callable[..., Any],
@@ -132,6 +156,8 @@ def run_serve(
 ) -> int:
     settings = load_web_settings(args.config / "web.toml")
     host = args.host or settings.host
+    if args.showcase:  # read-only, so it may listen beyond this machine (inside a container)
+        return _serve_showcase(args, settings, host, run)
     if host not in LOCAL_HOSTS:
         print(
             "error: the prototype is local only (127.0.0.1) until sign-in exists", file=sys.stderr
@@ -153,4 +179,21 @@ def run_serve(
     port = args.port or settings.port
     print(f"ClaimLens is running on http://{host}:{port} (Ctrl+C to stop)")
     (run or uvicorn.run)(create_app(services), host=host, port=port)
+    return 0
+
+
+def _serve_showcase(
+    args: argparse.Namespace, settings: WebSettings, host: str, run: Callable[..., None] | None
+) -> int:
+    data = args.data
+    if data is None or not (data / "claims.db").is_file():
+        print("error: --showcase needs --data <folder with claims.db and blobs/>", file=sys.stderr)
+        return 2
+    import uvicorn
+
+    from claimlens.web.app import create_app
+
+    port = args.port or settings.port
+    print(f"ClaimLens showcase (read-only) on http://{host}:{port}")
+    (run or uvicorn.run)(create_app(showcase_services(data, settings)), host=host, port=port)
     return 0

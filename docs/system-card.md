@@ -98,6 +98,8 @@ Reports: `evals/reports/` (golden v2, simulated customers, red team, live red te
 - **Near-copies:** crops heavier than about 2% are not caught; no AI-generated-image or photo
   metadata checks.
 - **Corrected answers:** a customer who corrects a date may keep the first one (intake prompt v2).
+- **A photo the customer cannot send:** the intake agent keeps asking until the chat's spending
+  cap hands the claim over, instead of recording the gap.
 - **Single provider:** Anthropic only; no fallback provider.
 - **Not covered by the red team:** ASI07 (no agent-to-agent channel exists).
 
@@ -106,9 +108,11 @@ Reports: `evals/reports/` (golden v2, simulated customers, red team, live red te
 - Secrets live only in a git-ignored `.env`. The event log stores facts and a fingerprint of the
   chat transcript, not the transcript.
 - CarDD images and the trained weights are never redistributed. Published images use only
-  CC BY 4.0 `car-seg` photos, credited.
-- The public demo (M8b) is a read-only showcase: pre-filed sample claims, no visitor input, no
-  LLM calls.
+  openly licensed photos, credited: CC BY 4.0 `car-seg` images in the README and Wikimedia
+  Commons CC BY / CC BY-SA images in the showcase (number plates blurred).
+- The public demo is a read-only showcase (ADR 0020): five recorded sample claims built from
+  Wikimedia Commons photos (CC BY / CC BY-SA, credited), no visitor input, no LLM calls, no
+  weights or keys in the image.
 
 ## 8. Regulation note
 

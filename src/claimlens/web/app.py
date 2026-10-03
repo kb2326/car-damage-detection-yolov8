@@ -18,6 +18,12 @@ from claimlens.web.services import WebServices
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")  # autoescapes .html
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+SHOWCASE_REFUSAL = "This is a read-only showcase. Run ClaimLens locally to file and review claims."
+_CSP = (
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+    "script-src 'self'; frame-ancestors 'self' https://huggingface.co"
+)
+_DOCS = ("/docs", "/openapi.json", "/redoc")  # Swagger UI loads its assets from a CDN
 
 
 def get_services(request: Request) -> WebServices:
@@ -35,6 +41,23 @@ def create_app(services: WebServices) -> FastAPI:
     )
     app.state.services = services
     allowed = set(services.settings.allowed_hosts)
+    showcase = services.settings.showcase
+
+    @app.middleware("http")
+    async def _read_only_and_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Showcase: no request may change anything, whatever route it reaches. Always: standard
+        security headers."""
+        if showcase and request.method not in _SAFE_METHODS:
+            response: Response = JSONResponse({"detail": SHOWCASE_REFUSAL}, 403)
+        else:
+            response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "same-origin"
+        if not request.url.path.startswith(_DOCS):
+            response.headers["Content-Security-Policy"] = _CSP
+        return response
 
     @app.middleware("http")
     async def _same_origin(
